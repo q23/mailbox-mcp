@@ -1,20 +1,21 @@
 import { ImapClient } from "@/imap-client";
 import { ReadEmailSchema } from "@/schemas";
-import type { UserContext } from "@/types";
+import { resolveCredentials } from "@/crypto";
 import type { TextContent } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 
 export async function handleReadEmail(
   imapClient: ImapClient,
-  user: UserContext,
+  encryptionKey: string,
   input: z.infer<typeof ReadEmailSchema>
 ): Promise<{
   content: TextContent[];
 }> {
   try {
+    const creds = resolveCredentials(input.credentials, encryptionKey);
     const email = await imapClient.readEmail(
-      user.imapUser,
-      user.imapPass,
+      creds.user,
+      creds.pass,
       input.folder,
       input.uid
     );

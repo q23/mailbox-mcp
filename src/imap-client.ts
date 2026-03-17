@@ -17,7 +17,7 @@ interface ClientPool {
 export class ImapClient {
   private globalConfig: Omit<ImapConfig, "user" | "pass">;
   private connectionPool: Map<string, ClientPool> = new Map();
-  private readonly IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+  private readonly IDLE_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes
   private cleanupInterval: NodeJS.Timeout | null = null;
 
   constructor(config: ImapConfig) {

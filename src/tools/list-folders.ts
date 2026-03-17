@@ -1,18 +1,19 @@
 import { ImapClient } from "@/imap-client";
 import { ListFoldersSchema } from "@/schemas";
-import type { UserContext } from "@/types";
+import { resolveCredentials } from "@/crypto";
 import type { TextContent } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 
 export async function handleListFolders(
   imapClient: ImapClient,
-  user: UserContext,
-  _input: z.infer<typeof ListFoldersSchema>
+  encryptionKey: string,
+  input: z.infer<typeof ListFoldersSchema>
 ): Promise<{
   content: TextContent[];
 }> {
   try {
-    const folders = await imapClient.listFolders(user.imapUser, user.imapPass);
+    const creds = resolveCredentials(input.credentials, encryptionKey);
+    const folders = await imapClient.listFolders(creds.user, creds.pass);
 
     const markdown = `# IMAP Mailbox Folders
 

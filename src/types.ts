@@ -1,16 +1,7 @@
 export interface ImapConfig {
   host: string;
   port: number;
-  user?: string;
-  pass?: string;
   tls: boolean;
-}
-
-export interface UserContext {
-  apiKey: string;
-  name: string;
-  imapUser: string;
-  imapPass: string;
 }
 
 export interface MailboxInfo {

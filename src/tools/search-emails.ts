@@ -1,20 +1,21 @@
 import { ImapClient } from "@/imap-client";
 import { SearchEmailsSchema } from "@/schemas";
-import type { UserContext } from "@/types";
+import { resolveCredentials } from "@/crypto";
 import type { TextContent } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 
 export async function handleSearchEmails(
   imapClient: ImapClient,
-  user: UserContext,
+  encryptionKey: string,
   input: z.infer<typeof SearchEmailsSchema>
 ): Promise<{
   content: TextContent[];
 }> {
   try {
+    const creds = resolveCredentials(input.credentials, encryptionKey);
     const emails = await imapClient.searchEmails(
-      user.imapUser,
-      user.imapPass,
+      creds.user,
+      creds.pass,
       input.folder,
       input.query,
       {

@@ -1,14 +1,23 @@
 import { z } from "zod";
 
-export const ListFoldersSchema = z.object({});
+// Shared credentials field for all tools
+const credentialsField = z.string().describe(
+  "Base64-encoded encrypted IMAP credentials (use imap_encrypt_credentials tool to generate)"
+);
+
+export const ListFoldersSchema = z.object({
+  credentials: credentialsField,
+});
 
 export const ListEmailsSchema = z.object({
+  credentials: credentialsField,
   folder: z.string().optional().default("INBOX"),
   limit: z.number().int().min(1).max(100).optional().default(20),
   offset: z.number().int().min(0).optional().default(0),
 });
 
 export const SearchEmailsSchema = z.object({
+  credentials: credentialsField,
   query: z.string().min(1),
   folder: z.string().optional().default("INBOX"),
   from: z.string().optional(),
@@ -20,6 +29,7 @@ export const SearchEmailsSchema = z.object({
 });
 
 export const ReadEmailSchema = z.object({
+  credentials: credentialsField,
   uid: z.number().int().positive(),
   folder: z.string().optional().default("INBOX"),
 });

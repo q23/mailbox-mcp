@@ -3,18 +3,18 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { CallToolRequestSchema, TextContent, Tool } from "@modelcontextprotocol/sdk/types.js";
 import type { CallToolRequest } from "@modelcontextprotocol/sdk/types.js";
 import { ImapClient } from "./imap-client";
-import { authManager } from "./auth";
-import type { UserContext } from "./types";
 import {
   ListFoldersSchema,
   ListEmailsSchema,
   SearchEmailsSchema,
   ReadEmailSchema,
 } from "./schemas/index";
+import { EncryptCredentialsSchema } from "./tools/encrypt-credentials";
 import { handleListFolders } from "./tools/list-folders";
 import { handleListEmails } from "./tools/list-emails";
 import { handleSearchEmails } from "./tools/search-emails";
 import { handleReadEmail } from "./tools/read-email";
+import { handleEncryptCredentials } from "./tools/encrypt-credentials";
 
 const LOG_LEVEL = (process.env.LOG_LEVEL || "info") as
   | "debug"
@@ -50,19 +50,19 @@ const imapConfig = {
   tls: (process.env.IMAP_TLS || "true").toLowerCase() === "true",
 };
 
-// Load users from users.json
-try {
-  authManager.loadUsers();
-  const users = authManager.getAllUsers();
-  logger.info(`Loaded ${users.length} users from users.json`);
-  users.forEach((u) => {
-    logger.debug(`  - ${u.name} (${u.imap_user})`);
-  });
-} catch (error) {
-  logger.error(
-    "Failed to load users.json. Make sure it exists in the working directory."
+// Load encryption key from env; generate random key if not set
+let encryptionKey: string;
+if (!process.env.ENCRYPTION_KEY) {
+  const { randomBytes } = await import('crypto');
+  const randomKey = randomBytes(32).toString('hex');
+  encryptionKey = randomKey;
+  logger.warn(
+    `No ENCRYPTION_KEY env var set. Generated random key: ${randomKey}`
   );
-  process.exit(1);
+  logger.warn("For production, set ENCRYPTION_KEY env var to a stable value.");
+} else {
+  encryptionKey = process.env.ENCRYPTION_KEY;
+  logger.info("ENCRYPTION_KEY loaded from environment");
 }
 
 // Global IMAP client for connection pool
@@ -70,20 +70,42 @@ const imapClient = new ImapClient({
   host: imapConfig.host,
   port: imapConfig.port,
   tls: imapConfig.tls,
-  user: "", // Will be set per-request
-  pass: "", // Will be set per-request
 });
 
 // Define tools
 const tools: Tool[] = [
+  {
+    name: "imap_encrypt_credentials",
+    description:
+      "Encrypt IMAP credentials for use with other tools. Call this once to get an encrypted token, then use the token for all subsequent IMAP operations.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        imap_user: {
+          type: "string",
+          description: "IMAP email address",
+        },
+        imap_pass: {
+          type: "string",
+          description: "IMAP password or app-specific password",
+        },
+      },
+      required: ["imap_user", "imap_pass"],
+    },
+  },
   {
     name: "imap_list_folders",
     description:
       "List all mailbox folders (INBOX, Sent, Drafts, etc.) with message and unread counts",
     inputSchema: {
       type: "object",
-      properties: {},
-      required: [],
+      properties: {
+        credentials: {
+          type: "string",
+          description: "Base64-encoded encrypted IMAP credentials (use imap_encrypt_credentials tool to generate)",
+        },
+      },
+      required: ["credentials"],
     },
   },
   {
@@ -93,6 +115,10 @@ const tools: Tool[] = [
     inputSchema: {
       type: "object",
       properties: {
+        credentials: {
+          type: "string",
+          description: "Base64-encoded encrypted IMAP credentials (use imap_encrypt_credentials tool to generate)",
+        },
         folder: {
           type: "string",
           description: "Folder name (default: INBOX)",
@@ -106,7 +132,7 @@ const tools: Tool[] = [
           description: "Number of emails to skip for pagination (default: 0)",
         },
       },
-      required: [],
+      required: ["credentials"],
     },
   },
   {
@@ -116,6 +142,10 @@ const tools: Tool[] = [
     inputSchema: {
       type: "object",
       properties: {
+        credentials: {
+          type: "string",
+          description: "Base64-encoded encrypted IMAP credentials (use imap_encrypt_credentials tool to generate)",
+        },
         query: {
           type: "string",
           description: "Search query text",
@@ -149,7 +179,7 @@ const tools: Tool[] = [
           description: "Maximum number of results (default: 20, max: 100)",
         },
       },
-      required: ["query"],
+      required: ["credentials", "query"],
     },
   },
   {
@@ -158,6 +188,10 @@ const tools: Tool[] = [
     inputSchema: {
       type: "object",
       properties: {
+        credentials: {
+          type: "string",
+          description: "Base64-encoded encrypted IMAP credentials (use imap_encrypt_credentials tool to generate)",
+        },
         uid: {
           type: "number",
           description: "Message UID (unique identifier in folder)",
@@ -167,7 +201,7 @@ const tools: Tool[] = [
           description: "Folder name (default: INBOX)",
         },
       },
-      required: ["uid"],
+      required: ["credentials", "uid"],
     },
   },
 ];
@@ -175,7 +209,7 @@ const tools: Tool[] = [
 async function main(): Promise<void> {
   logger.info("Starting IMAP MCP Server");
   logger.info(`IMAP Host: ${imapConfig.host}:${imapConfig.port}`);
-  logger.info("Multi-user mode enabled - using users.json for authentication");
+  logger.info("Credential-per-request mode enabled");
 
   // Create MCP server
   const server = new Server({
@@ -183,91 +217,35 @@ async function main(): Promise<void> {
     version: "1.0.0",
   });
 
-  /**
-   * Helper function to extract API key from Bearer token
-   * Authorization: Bearer <api_key>
-   */
-  function extractApiKey(
-    request: CallToolRequest & { meta?: { headers?: Record<string, string> } }
-  ): string | null {
-    // Try to get from meta.headers (standard MCP format)
-    const headers = (request.meta?.headers as Record<string, string>) || {};
-    const authHeader = headers.authorization || headers.Authorization;
-
-    if (!authHeader) {
-      return null;
-    }
-
-    const parts = authHeader.split(" ");
-    if (parts.length === 2 && parts[0].toLowerCase() === "bearer") {
-      return parts[1];
-    }
-
-    return null;
-  }
-
   // Register tool request handler
   server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest) => {
     logger.debug(`Tool request: ${request.params.name}`, request.params.arguments);
 
-    // Extract and validate API key
-    const apiKey = extractApiKey(request);
-    if (!apiKey) {
-      logger.warn("Tool request without Authorization header");
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: "Missing or invalid Authorization header. Use: Authorization: Bearer <api_key>",
-          } as TextContent,
-        ],
-        isError: true,
-      };
-    }
-
-    const userConfig = authManager.getUserByApiKey(apiKey);
-    if (!userConfig) {
-      logger.warn(`Invalid API key: ${apiKey}`);
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: "Invalid API key",
-          } as TextContent,
-        ],
-        isError: true,
-      };
-    }
-
-    const user: UserContext = {
-      apiKey,
-      name: userConfig.name,
-      imapUser: userConfig.imap_user,
-      imapPass: userConfig.imap_pass,
-    };
-
-    logger.info(`Tool request from user: ${user.name}`);
-
     try {
       switch (request.params.name) {
+        case "imap_encrypt_credentials": {
+          const validated = EncryptCredentialsSchema.parse(request.params.arguments || {});
+          return await handleEncryptCredentials(encryptionKey, validated);
+        }
+
         case "imap_list_folders": {
           const validated = ListFoldersSchema.parse(request.params.arguments || {});
-          return await handleListFolders(imapClient, user, validated);
+          return await handleListFolders(imapClient, encryptionKey, validated);
         }
 
         case "imap_list_emails": {
           const validated = ListEmailsSchema.parse(request.params.arguments || {});
-          return await handleListEmails(imapClient, user, validated);
+          return await handleListEmails(imapClient, encryptionKey, validated);
         }
 
         case "imap_search_emails": {
           const validated = SearchEmailsSchema.parse(request.params.arguments || {});
-          return await handleSearchEmails(imapClient, user, validated);
+          return await handleSearchEmails(imapClient, encryptionKey, validated);
         }
 
         case "imap_read_email": {
           const validated = ReadEmailSchema.parse(request.params.arguments || {});
-          return await handleReadEmail(imapClient, user, validated);
+          return await handleReadEmail(imapClient, encryptionKey, validated);
         }
 
         default:
@@ -282,7 +260,7 @@ async function main(): Promise<void> {
           };
       }
     } catch (error) {
-      logger.error(`Tool error for user ${user.name}: ${request.params.name}`, error);
+      logger.error(`Tool error for ${request.params.name}`, error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       return {
         content: [

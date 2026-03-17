@@ -1,46 +1,34 @@
 # IMAP MCP Server
 
-A Model Context Protocol (MCP) server for reading emails via IMAP, built with Bun and TypeScript. Supports multi-user authentication with per-user IMAP credentials.
+A Model Context Protocol (MCP) server for reading emails via IMAP, built with Bun and TypeScript. Uses encrypted credentials passed per-request with no server-side credential storage.
 
 ## Features
 
-- **Multi-User Support** — Multiple users share the same IMAP server; each user authenticates with an API key
-- **Per-User Connection Pool** — Efficient connection reuse with idle timeout (5 min)
+- **Zero Credential Storage** — Credentials encrypted client-side; server only holds encryption key
+- **Per-Request Auth** — Each MCP tool call includes encrypted IMAP credentials
+- **Per-User Connection Pool** — Efficient connection reuse with idle timeout (2 min)
 - **List Mailbox Folders** — Get all folders with message/unread counts
 - **List Emails** — Retrieve recent emails from any folder with pagination
 - **Search Emails** — Advanced search by sender, recipient, subject, date range
 - **Read Email** — Fetch full email content with attachments list
-- **Production-Ready** — TypeScript strict mode, Zod validation, Docker support
+- **Production-Ready** — TypeScript strict mode, Zod validation, AES-256-GCM encryption, Docker support
 
 ## Architecture
 
-### Authentication Model
+### Authentication Model (Credentials-Per-Request)
 
 - **Global Config** (`.env`): `IMAP_HOST`, `IMAP_PORT`, `IMAP_TLS` — shared across all users
-- **User Config** (`users.json`): Maps API keys to per-user IMAP credentials
-- **HTTP Auth**: `Authorization: Bearer <api_key>` header identifies the user
-- **No credentials in tool parameters** — all user data is resolved server-side
+- **Encryption Key** (`ENCRYPTION_KEY` env): 256-bit AES key, shared with MCP client
+- **Per-Request Credentials**: Each tool call includes `encrypted_credentials` parameter
+- **No Persistent Storage**: Credentials never stored on server; decrypted on-demand
+- **Connection Pool**: Keyed by username, 2-minute idle timeout, max 3 connections per user
 
-### users.json Format
+### Encryption Scheme
 
-```json
-{
-  "users": [
-    {
-      "api_key": "imap-ada-a1b2c3d4e5f6",
-      "name": "Andrej Daiker",
-      "imap_user": "a.daiker@q23.de",
-      "imap_pass": "app-password-here"
-    },
-    {
-      "api_key": "imap-aimo-x9y8z7w6",
-      "name": "Aimo Hindriks",
-      "imap_user": "a.hindriks@q23.de",
-      "imap_pass": "their-app-password"
-    }
-  ]
-}
-```
+- **Algorithm**: AES-256-GCM (authenticated encryption)
+- **Format**: `base64(iv:authTag:ciphertext)` combined into single base64 string
+- **Payload**: JSON: `{ user: "email@domain.com", pass: "password" }`
+- **Key**: 256-bit hex string from `ENCRYPTION_KEY` environment variable
 
 ## Quick Start
 
@@ -58,68 +46,60 @@ cd imap-mcp-server
 npm install  # or: bun install
 ```
 
-2. Create `users.json` from template:
+2. Generate an encryption key (once):
 ```bash
-cp users.json.example users.json
+bun run scripts/encrypt-credentials.ts --generate-key
+# Output: a1b2c3d4e5f6...
 ```
 
-3. Edit `users.json` with your users and credentials:
-```json
-{
-  "users": [
-    {
-      "api_key": "imap-ada-a1b2c3d4e5f6",
-      "name": "Andrej Daiker",
-      "imap_user": "a.daiker@q23.de",
-      "imap_pass": "your-app-password"
-    }
-  ]
-}
-```
-
-4. Create `.env` file:
+3. Create `.env` file:
 ```bash
 cp .env.example .env
 ```
 
-5. Update `.env` with global IMAP config:
+4. Update `.env` with encryption key and IMAP config:
 ```env
 IMAP_HOST=imap.gmail.com
 IMAP_PORT=993
 IMAP_TLS=true
 PORT=3000
 LOG_LEVEL=info
+ENCRYPTION_KEY=a1b2c3d4e5f6...  # From step 2
 ```
 
-6. Development server:
+5. Development server:
 ```bash
 npm run dev
 ```
 
-7. Build for production:
+6. Build for production:
 ```bash
 npm run build
 ```
 
-8. Type checking:
+7. Type checking:
 ```bash
 npm run type-check
 ```
 
-### Adding Users via CLI
+### Encrypting Credentials for Users
 
-Use the `add-user` script to interactively add new users:
+For each user who needs access, encrypt their IMAP credentials:
 
 ```bash
-npx ts-node scripts/add-user.ts
+bun run scripts/encrypt-credentials.ts \
+  --user a.daiker@q23.de \
+  --pass MySecretPassword \
+  --key a1b2c3d4e5f6...
 ```
 
-This will:
-- Prompt for user name and IMAP email
-- Prompt for IMAP password
-- Generate a random API key
-- Append to `users.json`
-- Display the API key for use in requests
+Output:
+```
+Encrypted token:
+xYz123...full_base64_token...
+```
+
+The user then uses this token as the `credentials` parameter in their MCP tool calls.
 
 ### Docker Deployment
 
@@ -132,7 +112,6 @@ docker-compose up
 
 This automatically:
 - Builds with multi-stage Dockerfile
-- Mounts `users.json` as a read-only volume
 - Loads environment from `.env`
 - Exposes server on port 3000
 - Includes health check
@@ -147,48 +126,81 @@ This automatically:
    - `IMAP_TLS` — `true` or `false` (default: true)
    - `PORT` — HTTP server port (default: 3000)
    - `LOG_LEVEL` — `debug`, `info`, `warn`, or `error`
+   - `ENCRYPTION_KEY` — 256-bit hex AES key (generate with `openssl rand -hex 32`)
 
-4. Upload or create `users.json` in your repository
-5. Dokploy will automatically:
+4. Dokploy will automatically:
    - Detect `docker-compose.yml`
    - Build and run the container
-   - Mount `users.json`
    - Monitor health check
    - Handle logs and restarts
 
 ## Authentication
 
-All tool calls require the `Authorization` header with a Bearer token:
+All IMAP tool calls require encrypted credentials passed as a parameter:
 
-```
-Authorization: Bearer imap-ada-a1b2c3d4e5f6
+1. **First call**: Use `imap_encrypt_credentials` to encrypt your credentials:
+```json
+{
+  "imap_user": "a.daiker@q23.de",
+  "imap_pass": "MyPassword"
+}
 ```
 
-Example with curl:
+2. **All subsequent calls**: Pass the encrypted token:
+```json
+{
+  "credentials": "xYz123...base64_encrypted_token...",
+  "folder": "INBOX",
+  "limit": 20
+}
+```
+
+Or use the `encrypt-credentials.ts` script to pre-generate tokens:
 ```bash
-curl -H "Authorization: Bearer imap-ada-a1b2c3d4e5f6" \
-  http://localhost:3000/call-tool
+bun run scripts/encrypt-credentials.ts \
+  --user a.daiker@q23.de \
+  --pass MyPassword \
+  --key a1b2c3d4e5f6...
 ```
 
-If the API key is invalid or missing, the server returns a 401 error.
+**Security Notes**:
+- Credentials are encrypted client-side using AES-256-GCM
+- The server never stores credentials; they are decrypted on-demand for each request
+- The encryption key (`ENCRYPTION_KEY`) is shared only between the client and server
+- Each encrypted token can be safely reused within the same session
 
 ## API Tools
+
+### `imap_encrypt_credentials`
+Encrypt IMAP credentials for use with other tools. Call this once to get an encrypted token, then use the token for all subsequent IMAP operations.
+
+**Input**:
+- `imap_user` (string, required) — IMAP email address
+- `imap_pass` (string, required) — IMAP password or app-specific password
+
+**Output**: Encrypted token (base64 string) to use as `credentials` parameter in other tools
+
+**Example**:
+```json
+{
+  "imap_user": "a.daiker@q23.de",
+  "imap_pass": "app-password-here"
+}
+```
 
 ### `imap_list_folders`
 List all mailbox folders with counts.
 
-**Auth**: Required (Bearer token)
-
-**Input**: None
+**Input**:
+- `credentials` (string, required) — Encrypted IMAP credentials from `imap_encrypt_credentials`
 
 **Output**: Markdown table with folders, paths, message counts, unread counts
 
 ### `imap_list_emails`
 List recent emails from a folder.
 
-**Auth**: Required (Bearer token)
-
 **Input**:
+- `credentials` (string, required) — Encrypted IMAP credentials
 - `folder` (string, optional) — Mailbox name, default: `INBOX`
 - `limit` (number, optional) — Max results, default: 20, max: 100
 - `offset` (number, optional) — Skip N messages, default: 0
@@ -198,9 +210,8 @@ List recent emails from a folder.
 ### `imap_search_emails`
 Search emails by criteria.
 
-**Auth**: Required (Bearer token)
-
 **Input**:
+- `credentials` (string, required) — Encrypted IMAP credentials
 - `query` (string, required) — Search text
 - `folder` (string, optional) — Mailbox name, default: `INBOX`
 - `from` (string, optional) — Sender email filter
@@ -214,17 +225,16 @@ Search emails by criteria.
 
 **Examples**:
 ```
-query="invoice", from="accounting@company.com"
-query="support", since="2026-01-01T00:00:00Z", before="2026-03-17T23:59:59Z"
-query="contract", subject="agreement"
+credentials="xYz123...", query="invoice", from="accounting@company.com"
+credentials="xYz123...", query="support", since="2026-01-01T00:00:00Z", before="2026-03-17T23:59:59Z"
+credentials="xYz123...", query="contract", subject="agreement"
 ```
 
 ### `imap_read_email`
 Get full email content.
 
-**Auth**: Required (Bearer token)
-
 **Input**:
+- `credentials` (string, required) — Encrypted IMAP credentials
 - `uid` (number, required) — Message UID from list/search results
 - `folder` (string, optional) — Mailbox name, default: `INBOX`
 
@@ -240,26 +250,26 @@ Get full email content.
 ```
 imap-mcp-server/
 ├── src/
-│   ├── index.ts           # MCP server setup, tool handlers, auth extraction
-│   ├── auth.ts            # User authentication and API key lookup
+│   ├── index.ts           # MCP server setup, tool handlers, encryption key loading
+│   ├── crypto.ts          # AES-256-GCM encryption/decryption functions
 │   ├── imap-client.ts     # IMAP connection pool & message logic
 │   ├── types.ts           # TypeScript interfaces
 │   ├── schemas/
 │   │   └── index.ts       # Zod input validation schemas
 │   └── tools/
+│       ├── encrypt-credentials.ts   # Encryption tool handler
 │       ├── list-folders.ts
 │       ├── list-emails.ts
 │       ├── search-emails.ts
 │       └── read-email.ts
 ├── scripts/
-│   └── add-user.ts        # CLI helper to add users to users.json
+│   └── encrypt-credentials.ts   # CLI to encrypt user credentials
+├── dist/                  # Compiled TypeScript output (build artifact)
 ├── Dockerfile             # Multi-stage build
-├── docker-compose.yml     # Docker Compose with users.json mount
+├── docker-compose.yml     # Docker Compose configuration
 ├── package.json           # Dependencies & scripts
 ├── tsconfig.json          # TypeScript strict mode
 ├── .env.example           # Environment template
-├── users.json             # User credentials (do not commit)
-├── users.json.example     # User template
 └── README.md              # This file
 ```
 
@@ -269,20 +279,22 @@ imap-mcp-server/
 - **Zod Validation**: All tool inputs are validated before processing
 - **Error Handling**: Actionable error messages in all responses
 - **Read-Only**: No email modification, deletion, or sending
-- **Connection Pooling**: Per-user IMAP connections with 5-minute idle timeout
-- **Multi-User**: Each request is authenticated and isolated to the user's IMAP account
+- **Encryption**: AES-256-GCM encryption with authenticated decryption
+- **Connection Pooling**: Per-user IMAP connections with 2-minute idle timeout
+- **Stateless Auth**: Credentials per-request; no persistent sessions
 
 ## Environment Variables Reference
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `IMAP_HOST` | `imap.gmail.com` | IMAP server hostname (shared across all users) |
-| `IMAP_PORT` | `993` | IMAP port (usually 993 for TLS, shared across all users) |
-| `IMAP_TLS` | `true` | Use TLS encryption (true/false, shared across all users) |
+| `IMAP_PORT` | `993` | IMAP port (usually 993 for TLS) |
+| `IMAP_TLS` | `true` | Use TLS encryption (true/false) |
 | `PORT` | `3000` | HTTP server listen port |
 | `LOG_LEVEL` | `info` | Logging level (debug/info/warn/error) |
+| `ENCRYPTION_KEY` | (none) | 256-bit AES key (hex string, 64 characters). Generate with `openssl rand -hex 32` |
 
-**Note**: User credentials (`imap_user`, `imap_pass`) are configured in `users.json`, NOT environment variables.
+**Note**: User credentials are never stored on the server. They are encrypted per-request using `ENCRYPTION_KEY`.
 
 ## Common IMAP Servers
 

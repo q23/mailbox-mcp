@@ -31,15 +31,15 @@ COPY --from=builder /app/package.json ./
 # Create non-root user
 RUN addgroup -g 1000 imap && adduser -D -u 1000 -G imap imap
 
-# Create directory for users.json and set permissions
-RUN mkdir -p /app && chown -R imap:imap /app
+# Set ownership
+RUN chown -R imap:imap /app
 
 USER imap
 
 EXPOSE 3000
 
-# Note: users.json should be mounted as a volume or copied in before running
-# Example: docker run -v ./users.json:/app/users.json:ro ...
+# ENCRYPTION_KEY must be provided via environment variable
+# Authentication uses per-request encrypted credentials (no users.json needed)
 
 ENTRYPOINT ["dumb-init", "--"]
 CMD ["node", "dist/index.js"]
