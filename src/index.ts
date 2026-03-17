@@ -50,20 +50,21 @@ const imapConfig = {
   tls: (process.env.IMAP_TLS || "true").toLowerCase() === "true",
 };
 
-// Load encryption key from env; generate random key if not set
-let encryptionKey: string;
+// Load and validate encryption key from env
 if (!process.env.ENCRYPTION_KEY) {
-  const { randomBytes } = await import('crypto');
-  const randomKey = randomBytes(32).toString('hex');
-  encryptionKey = randomKey;
-  logger.warn(
-    `No ENCRYPTION_KEY env var set. Generated random key: ${randomKey}`
-  );
-  logger.warn("For production, set ENCRYPTION_KEY env var to a stable value.");
-} else {
-  encryptionKey = process.env.ENCRYPTION_KEY;
-  logger.info("ENCRYPTION_KEY loaded from environment");
+  logger.error("ENCRYPTION_KEY env var is required. Generate one with: bun run scripts/encrypt-credentials.ts --generate-key");
+  process.exit(1);
 }
+
+const encryptionKey = process.env.ENCRYPTION_KEY;
+
+// Validate key format: must be a 64-character hex string (256 bits)
+if (!/^[0-9a-fA-F]{64}$/.test(encryptionKey)) {
+  logger.error("ENCRYPTION_KEY must be a 64-character hex string (256-bit AES key). Generate one with: bun run scripts/encrypt-credentials.ts --generate-key");
+  process.exit(1);
+}
+
+logger.info("ENCRYPTION_KEY loaded and validated");
 
 // Global IMAP client for connection pool
 const imapClient = new ImapClient({
