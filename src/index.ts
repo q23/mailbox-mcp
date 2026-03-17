@@ -1,3 +1,5 @@
+import { createServer } from "http";
+import type { IncomingMessage, ServerResponse } from "http";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { CallToolRequestSchema, ListToolsRequestSchema, TextContent, Tool } from "@modelcontextprotocol/sdk/types.js";
@@ -317,65 +319,53 @@ logger.info("Starting IMAP MCP Server (HTTP mode)");
 logger.info(`IMAP Host: ${imapConfig.host}:${imapConfig.port}`);
 logger.info("Credential-per-request mode enabled");
 
-Bun.serve({
-  port: PORT,
-  async fetch(req: Request): Promise<Response> {
-    const url = new URL(req.url);
+const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
+  const url = new URL(req.url ?? "/", `http://localhost:${PORT}`);
 
-    // CORS preflight
-    if (req.method === "OPTIONS") {
-      return new Response(null, { status: 204, headers: corsHeaders });
+  // Set CORS headers on all responses
+  for (const [key, value] of Object.entries(corsHeaders)) {
+    res.setHeader(key, value);
+  }
+
+  // CORS preflight
+  if (req.method === "OPTIONS") {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
+  // Health check
+  if (url.pathname === "/health") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ status: "ok", service: "imap-mcp-server" }));
+    return;
+  }
+
+  // MCP endpoint - stateless per-request
+  if (url.pathname === "/mcp") {
+    try {
+      const server = createMcpServer();
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: undefined, // stateless mode
+      });
+
+      await server.connect(transport);
+      await transport.handleRequest(req, res);
+    } catch (error) {
+      logger.error("MCP request error", error);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Internal server error" }));
     }
+    return;
+  }
 
-    // Health check
-    if (url.pathname === "/health") {
-      return new Response(
-        JSON.stringify({ status: "ok", service: "imap-mcp-server" }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    // MCP endpoint - stateless per-request
-    if (url.pathname === "/mcp") {
-      try {
-        const server = createMcpServer();
-        const transport = new StreamableHTTPServerTransport({
-          sessionIdGenerator: undefined, // stateless mode
-        });
-
-        await server.connect(transport);
-        const response = await transport.handleRequest(req);
-
-        // Merge CORS headers into response
-        const headers = new Headers(response.headers);
-        for (const [k, v] of Object.entries(corsHeaders)) {
-          headers.set(k, v);
-        }
-
-        return new Response(response.body, {
-          status: response.status,
-          headers,
-        });
-      } catch (error) {
-        logger.error("MCP request error", error);
-        return new Response(
-          JSON.stringify({ error: "Internal server error" }),
-          {
-            status: 500,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
-      }
-    }
-
-    return new Response("Not Found", { status: 404, headers: corsHeaders });
-  },
+  res.writeHead(404);
+  res.end("Not Found");
 });
 
-logger.info(`IMAP MCP Server listening on http://0.0.0.0:${PORT}/mcp`);
+httpServer.listen(PORT, "0.0.0.0", () => {
+  logger.info(`IMAP MCP Server listening on http://0.0.0.0:${PORT}/mcp`);
+});
 
 // Graceful shutdown
 const shutdown = async (): Promise<void> => {
