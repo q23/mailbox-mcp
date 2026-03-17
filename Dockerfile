@@ -1,19 +1,19 @@
-FROM oven/bun:1-alpine as builder
+FROM oven/bun:1-alpine AS builder
 
 WORKDIR /app
 
 # Copy package files
-COPY package.json package-lock.json* bun.lock* ./
+COPY package.json bun.lock* ./
 
-# Install dependencies - try bun first, fallback to npm
-RUN bun install --frozen-lockfile 2>/dev/null || npm install --frozen-lockfile
+# Install dependencies
+RUN bun install --frozen-lockfile
 
 # Copy source code
 COPY src ./src
 COPY tsconfig.json ./
 
 # Type check and build
-RUN npx tsc --noEmit && npx tsc --outDir dist
+RUN bunx tsc --noEmit && bunx tsc --outDir dist
 
 # Runtime stage
 FROM oven/bun:1-alpine
@@ -42,4 +42,4 @@ EXPOSE 3000
 # Authentication uses per-request encrypted credentials (no users.json needed)
 
 ENTRYPOINT ["dumb-init", "--"]
-CMD ["node", "dist/index.js"]
+CMD ["bun", "dist/index.js"]
