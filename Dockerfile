@@ -28,8 +28,8 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
 
-# Create non-root user
-RUN addgroup -g 1000 imap && adduser -D -u 1000 -G imap imap
+# Create non-root user (GID/UID 1001 to avoid conflicts with existing bun user)
+RUN addgroup -g 1001 imap && adduser -D -u 1001 -G imap imap
 
 # Set ownership
 RUN chown -R imap:imap /app
