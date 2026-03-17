@@ -1,0 +1,71 @@
+import { ImapClient } from "@/imap-client";
+import { SearchEmailsSchema } from "@/schemas";
+import type { UserContext } from "@/types";
+import type { TextContent } from "@modelcontextprotocol/sdk/types.js";
+import { z } from "zod";
+
+export async function handleSearchEmails(
+  imapClient: ImapClient,
+  user: UserContext,
+  input: z.infer<typeof SearchEmailsSchema>
+): Promise<{
+  content: TextContent[];
+}> {
+  try {
+    const emails = await imapClient.searchEmails(
+      user.imapUser,
+      user.imapPass,
+      input.folder,
+      input.query,
+      {
+        from: input.from,
+        to: input.to,
+        since: input.since,
+        before: input.before,
+        subject: input.subject,
+      },
+      input.limit
+    );
+
+    const markdown = `# Search Results in ${input.folder}
+
+**Query**: ${input.query}
+${input.from ? `\n**From**: ${input.from}` : ""}
+${input.to ? `\n**To**: ${input.to}` : ""}
+${input.subject ? `\n**Subject contains**: ${input.subject}` : ""}
+${input.since ? `\n**Since**: ${input.since}` : ""}
+${input.before ? `\n**Before**: ${input.before}` : ""}
+
+**Results Found**: ${emails.length}
+
+${
+  emails.length === 0
+    ? "No emails matched your search criteria."
+    : `
+| From | Subject | Date | Status |
+|------|---------|------|--------|
+${emails.map((e) => `| ${e.from} | ${e.subject} | ${e.date} | ${e.read ? "Read" : "Unread"} |`).join("\n")}
+`
+}
+`;
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: markdown,
+        } as TextContent,
+      ],
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Error searching emails: ${errorMessage}`,
+        } as TextContent,
+      ],
+    };
+  }
+}

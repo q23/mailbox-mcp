@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  imap-mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: imap-mcp-server
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - IMAP_HOST=${IMAP_HOST:-imap.gmail.com}
+      - IMAP_PORT=${IMAP_PORT:-993}
+      - IMAP_TLS=${IMAP_TLS:-true}
+      - PORT=3000
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    env_file:
+      - .env
+    volumes:
+      - ./users.json:/app/users.json:ro
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - imap-network
+    labels:
+      - "com.example.description=IMAP MCP Server for multi-user email integration"
+
+networks:
+  imap-network:
+    driver: bridge

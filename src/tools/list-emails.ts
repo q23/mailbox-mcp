@@ -1,0 +1,59 @@
+import { ImapClient } from "@/imap-client";
+import { ListEmailsSchema } from "@/schemas";
+import type { UserContext } from "@/types";
+import type { TextContent } from "@modelcontextprotocol/sdk/types.js";
+import { z } from "zod";
+
+export async function handleListEmails(
+  imapClient: ImapClient,
+  user: UserContext,
+  input: z.infer<typeof ListEmailsSchema>
+): Promise<{
+  content: TextContent[];
+}> {
+  try {
+    const emails = await imapClient.listEmails(
+      user.imapUser,
+      user.imapPass,
+      input.folder,
+      input.limit,
+      input.offset
+    );
+
+    const markdown = `# Emails from ${input.folder}
+
+**Showing**: ${input.offset + 1} to ${input.offset + emails.length} (limit: ${input.limit})
+
+${
+  emails.length === 0
+    ? "No emails found."
+    : `
+| From | Subject | Date | Status |
+|------|---------|------|--------|
+${emails.map((e) => `| ${e.from} | ${e.subject} | ${e.date} | ${e.read ? "Read" : "Unread"} |`).join("\n")}
+`
+}
+
+**Total in folder**: ${emails.length > 0 ? "Multiple" : "0"} messages
+`;
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: markdown,
+        } as TextContent,
+      ],
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Error listing emails: ${errorMessage}`,
+        } as TextContent,
+      ],
+    };
+  }
+}
