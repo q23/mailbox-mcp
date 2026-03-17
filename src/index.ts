@@ -1,6 +1,6 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { CallToolRequestSchema, TextContent, Tool } from "@modelcontextprotocol/sdk/types.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { CallToolRequestSchema, ListToolsRequestSchema, TextContent, Tool } from "@modelcontextprotocol/sdk/types.js";
 import type { CallToolRequest } from "@modelcontextprotocol/sdk/types.js";
 import { ImapClient } from "./imap-client";
 import {
@@ -45,14 +45,16 @@ const logger = {
 
 // Global IMAP config (shared across all users)
 const imapConfig = {
-  host: process.env.IMAP_HOST || "imap.gmail.com",
+  host: process.env.IMAP_HOST || "srv8.q23.net",
   port: parseInt(process.env.IMAP_PORT || "993"),
   tls: (process.env.IMAP_TLS || "true").toLowerCase() === "true",
 };
 
 // Load and validate encryption key from env
 if (!process.env.ENCRYPTION_KEY) {
-  logger.error("ENCRYPTION_KEY env var is required. Generate one with: bun run scripts/encrypt-credentials.ts --generate-key");
+  logger.error(
+    "ENCRYPTION_KEY env var is required. Generate one with: bun run scripts/encrypt-credentials.ts --generate-key"
+  );
   process.exit(1);
 }
 
@@ -60,20 +62,22 @@ const encryptionKey = process.env.ENCRYPTION_KEY;
 
 // Validate key format: must be a 64-character hex string (256 bits)
 if (!/^[0-9a-fA-F]{64}$/.test(encryptionKey)) {
-  logger.error("ENCRYPTION_KEY must be a 64-character hex string (256-bit AES key). Generate one with: bun run scripts/encrypt-credentials.ts --generate-key");
+  logger.error(
+    "ENCRYPTION_KEY must be a 64-character hex string (256-bit AES key). Generate one with: bun run scripts/encrypt-credentials.ts --generate-key"
+  );
   process.exit(1);
 }
 
 logger.info("ENCRYPTION_KEY loaded and validated");
 
-// Global IMAP client for connection pool
+// Global IMAP client connection pool (shared across all requests)
 const imapClient = new ImapClient({
   host: imapConfig.host,
   port: imapConfig.port,
   tls: imapConfig.tls,
 });
 
-// Define tools
+// Tool definitions
 const tools: Tool[] = [
   {
     name: "imap_encrypt_credentials",
@@ -103,7 +107,8 @@ const tools: Tool[] = [
       properties: {
         credentials: {
           type: "string",
-          description: "Base64-encoded encrypted IMAP credentials (use imap_encrypt_credentials tool to generate)",
+          description:
+            "Base64-encoded encrypted IMAP credentials (use imap_encrypt_credentials tool to generate)",
         },
       },
       required: ["credentials"],
@@ -118,7 +123,8 @@ const tools: Tool[] = [
       properties: {
         credentials: {
           type: "string",
-          description: "Base64-encoded encrypted IMAP credentials (use imap_encrypt_credentials tool to generate)",
+          description:
+            "Base64-encoded encrypted IMAP credentials (use imap_encrypt_credentials tool to generate)",
         },
         folder: {
           type: "string",
@@ -126,7 +132,8 @@ const tools: Tool[] = [
         },
         limit: {
           type: "number",
-          description: "Maximum number of emails to return (default: 20, max: 100)",
+          description:
+            "Maximum number of emails to return (default: 20, max: 100)",
         },
         offset: {
           type: "number",
@@ -145,7 +152,8 @@ const tools: Tool[] = [
       properties: {
         credentials: {
           type: "string",
-          description: "Base64-encoded encrypted IMAP credentials (use imap_encrypt_credentials tool to generate)",
+          description:
+            "Base64-encoded encrypted IMAP credentials (use imap_encrypt_credentials tool to generate)",
         },
         query: {
           type: "string",
@@ -191,7 +199,8 @@ const tools: Tool[] = [
       properties: {
         credentials: {
           type: "string",
-          description: "Base64-encoded encrypted IMAP credentials (use imap_encrypt_credentials tool to generate)",
+          description:
+            "Base64-encoded encrypted IMAP credentials (use imap_encrypt_credentials tool to generate)",
         },
         uid: {
           type: "number",
@@ -207,115 +216,173 @@ const tools: Tool[] = [
   },
 ];
 
-async function main(): Promise<void> {
-  logger.info("Starting IMAP MCP Server");
-  logger.info(`IMAP Host: ${imapConfig.host}:${imapConfig.port}`);
-  logger.info("Credential-per-request mode enabled");
+// CORS headers for Claude Desktop / Cowork access
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, mcp-session-id",
+  "Access-Control-Expose-Headers": "mcp-session-id",
+};
 
-  // Create MCP server
-  const server = new Server({
-    name: "imap-mcp-server",
-    version: "1.0.0",
+function createMcpServer(): Server {
+  const server = new Server(
+    { name: "imap-mcp-server", version: "1.0.0" },
+    { capabilities: { tools: {} } }
+  );
+
+  // List tools handler
+  server.setRequestHandler(ListToolsRequestSchema, async () => {
+    return { tools };
   });
 
-  // Register tool request handler
-  server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest) => {
-    logger.debug(`Tool request: ${request.params.name}`, request.params.arguments);
-
-    try {
-      switch (request.params.name) {
-        case "imap_encrypt_credentials": {
-          const validated = EncryptCredentialsSchema.parse(request.params.arguments || {});
-          return await handleEncryptCredentials(encryptionKey, validated);
-        }
-
-        case "imap_list_folders": {
-          const validated = ListFoldersSchema.parse(request.params.arguments || {});
-          return await handleListFolders(imapClient, encryptionKey, validated);
-        }
-
-        case "imap_list_emails": {
-          const validated = ListEmailsSchema.parse(request.params.arguments || {});
-          return await handleListEmails(imapClient, encryptionKey, validated);
-        }
-
-        case "imap_search_emails": {
-          const validated = SearchEmailsSchema.parse(request.params.arguments || {});
-          return await handleSearchEmails(imapClient, encryptionKey, validated);
-        }
-
-        case "imap_read_email": {
-          const validated = ReadEmailSchema.parse(request.params.arguments || {});
-          return await handleReadEmail(imapClient, encryptionKey, validated);
-        }
-
-        default:
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Unknown tool: ${request.params.name}`,
-              } as TextContent,
-            ],
-            isError: true,
-          };
-      }
-    } catch (error) {
-      logger.error(`Tool error for ${request.params.name}`, error);
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: `Error executing ${request.params.name}: ${errorMessage}`,
-          } as TextContent,
-        ],
-        isError: true,
-      };
-    }
-  });
-
-  // Set tools list
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // Call tool handler
   server.setRequestHandler(
-    {
-      method: "tools/list",
-    } as any,
-    async () => {
-      return { tools };
+    CallToolRequestSchema,
+    async (request: CallToolRequest) => {
+      logger.debug(
+        `Tool request: ${request.params.name}`,
+        request.params.arguments
+      );
+
+      try {
+        switch (request.params.name) {
+          case "imap_encrypt_credentials": {
+            const validated = EncryptCredentialsSchema.parse(
+              request.params.arguments || {}
+            );
+            return await handleEncryptCredentials(encryptionKey, validated);
+          }
+          case "imap_list_folders": {
+            const validated = ListFoldersSchema.parse(
+              request.params.arguments || {}
+            );
+            return await handleListFolders(imapClient, encryptionKey, validated);
+          }
+          case "imap_list_emails": {
+            const validated = ListEmailsSchema.parse(
+              request.params.arguments || {}
+            );
+            return await handleListEmails(imapClient, encryptionKey, validated);
+          }
+          case "imap_search_emails": {
+            const validated = SearchEmailsSchema.parse(
+              request.params.arguments || {}
+            );
+            return await handleSearchEmails(
+              imapClient,
+              encryptionKey,
+              validated
+            );
+          }
+          case "imap_read_email": {
+            const validated = ReadEmailSchema.parse(
+              request.params.arguments || {}
+            );
+            return await handleReadEmail(imapClient, encryptionKey, validated);
+          }
+          default:
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: `Unknown tool: ${request.params.name}`,
+                } as TextContent,
+              ],
+              isError: true,
+            };
+        }
+      } catch (error) {
+        logger.error(`Tool error for ${request.params.name}`, error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Error executing ${request.params.name}: ${errorMessage}`,
+            } as TextContent,
+          ],
+          isError: true,
+        };
+      }
     }
   );
 
-  // Connect transport
-  const transport = new StdioServerTransport();
-
-  logger.info("Connecting transport...");
-  await server.connect(transport);
-  logger.info("IMAP MCP Server running (stdio mode)");
-
-  // Cleanup on exit
-  const cleanup = async (): Promise<void> => {
-    logger.info("Shutting down...");
-    await imapClient.disconnect();
-    process.exit(0);
-  };
-
-  process.on("SIGTERM", () => {
-    cleanup().catch((err) => {
-      logger.error("Error during cleanup:", err);
-      process.exit(1);
-    });
-  });
-
-  process.on("SIGINT", () => {
-    cleanup().catch((err) => {
-      logger.error("Error during cleanup:", err);
-      process.exit(1);
-    });
-  });
+  return server;
 }
 
-main().catch((error) => {
-  logger.error("Fatal error:", error);
-  process.exit(1);
+const PORT = parseInt(process.env.PORT || "3000");
+
+logger.info("Starting IMAP MCP Server (HTTP mode)");
+logger.info(`IMAP Host: ${imapConfig.host}:${imapConfig.port}`);
+logger.info("Credential-per-request mode enabled");
+
+Bun.serve({
+  port: PORT,
+  async fetch(req: Request): Promise<Response> {
+    const url = new URL(req.url);
+
+    // CORS preflight
+    if (req.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: corsHeaders });
+    }
+
+    // Health check
+    if (url.pathname === "/health") {
+      return new Response(
+        JSON.stringify({ status: "ok", service: "imap-mcp-server" }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // MCP endpoint - stateless per-request
+    if (url.pathname === "/mcp") {
+      try {
+        const server = createMcpServer();
+        const transport = new StreamableHTTPServerTransport({
+          sessionIdGenerator: undefined, // stateless mode
+        });
+
+        await server.connect(transport);
+        const response = await transport.handleRequest(req);
+
+        // Merge CORS headers into response
+        const headers = new Headers(response.headers);
+        for (const [k, v] of Object.entries(corsHeaders)) {
+          headers.set(k, v);
+        }
+
+        return new Response(response.body, {
+          status: response.status,
+          headers,
+        });
+      } catch (error) {
+        logger.error("MCP request error", error);
+        return new Response(
+          JSON.stringify({ error: "Internal server error" }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+    }
+
+    return new Response("Not Found", { status: 404, headers: corsHeaders });
+  },
 });
+
+logger.info(`IMAP MCP Server listening on http://0.0.0.0:${PORT}/mcp`);
+
+// Graceful shutdown
+const shutdown = async (): Promise<void> => {
+  logger.info("Shutting down...");
+  await imapClient.disconnect();
+  process.exit(0);
+};
+
+process.on("SIGTERM", () => shutdown().catch(() => process.exit(1)));
+process.on("SIGINT", () => shutdown().catch(() => process.exit(1)));
