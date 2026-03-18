@@ -6,6 +6,9 @@ const credentialsField = z.string().optional().describe(
   "Optional if x-imap-user and x-imap-pass headers are configured in the MCP connector settings."
 );
 
+const emailArrayField = (description: string, minimum = 0) =>
+  z.array(z.string().email()).min(minimum).describe(description);
+
 export const ListFoldersSchema = z.object({
   credentials: credentialsField,
 });
@@ -35,7 +38,30 @@ export const ReadEmailSchema = z.object({
   folder: z.string().optional().default("INBOX"),
 });
 
+export const SendEmailSchema = z.object({
+  credentials: credentialsField,
+  to: emailArrayField("Recipient email addresses", 1),
+  subject: z.string().min(1),
+  text: z.string().min(1),
+  html: z.string().optional(),
+  cc: emailArrayField("CC recipient email addresses").optional(),
+  bcc: emailArrayField("BCC recipient email addresses").optional(),
+  from: z.string().email().optional(),
+});
+
+export const ReplyEmailSchema = z.object({
+  credentials: credentialsField,
+  uid: z.number().int().positive(),
+  folder: z.string().optional().default("INBOX"),
+  text: z.string().min(1),
+  html: z.string().optional(),
+  reply_all: z.boolean().optional().default(false),
+  from: z.string().email().optional(),
+});
+
 export type ListFoldersInput = z.infer<typeof ListFoldersSchema>;
 export type ListEmailsInput = z.infer<typeof ListEmailsSchema>;
 export type SearchEmailsInput = z.infer<typeof SearchEmailsSchema>;
 export type ReadEmailInput = z.infer<typeof ReadEmailSchema>;
+export type SendEmailInput = z.infer<typeof SendEmailSchema>;
+export type ReplyEmailInput = z.infer<typeof ReplyEmailSchema>;
