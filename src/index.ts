@@ -70,7 +70,6 @@ const smtpConfig = smtpEnabled
       host: process.env.SMTP_HOST || "",
       port: parseInt(process.env.SMTP_PORT || "587"),
       tls: (process.env.SMTP_TLS || "true").toLowerCase() === "true",
-      from: process.env.SMTP_FROM?.trim() || undefined,
     }
   : undefined;
 
@@ -205,7 +204,6 @@ function createMcpServer(defaultCredentials?: string): Server {
             return await handleSendEmail(
               smtpClient,
               encryptionKey,
-              smtpConfig.from,
               {
                 ...validated,
                 credentials: resolveCredentials(validated.credentials),
@@ -224,7 +222,6 @@ function createMcpServer(defaultCredentials?: string): Server {
               imapClient,
               smtpClient,
               encryptionKey,
-              smtpConfig.from,
               {
                 ...validated,
                 credentials: resolveCredentials(validated.credentials),

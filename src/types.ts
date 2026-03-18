@@ -8,7 +8,6 @@ export interface SmtpConfig {
   host: string;
   port: number;
   tls: boolean;
-  from?: string;
 }
 
 export interface MailboxInfo {

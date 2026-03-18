@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Optional SMTP support with `smtp_send_email` and `smtp_reply_email`
-- SMTP runtime configuration via `SMTP_HOST`, `SMTP_PORT`, `SMTP_TLS`, and `SMTP_FROM`
+- SMTP runtime configuration via `SMTP_HOST`, `SMTP_PORT`, and `SMTP_TLS`
 - Reply context extraction from IMAP messages for threaded replies
 - Automated tests for SMTP schema validation, reply logic, and tool registration
 
