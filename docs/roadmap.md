@@ -4,11 +4,12 @@ This roadmap reflects likely next steps after the initial open-source release. P
 
 ## Near Term
 
-- SMTP support for sending, replying to, and forwarding messages
+- SMTP forwarding support
 - Additional mailbox actions such as mark-as-read, move, and delete
 - Attachment download support for `imap_read_email`
+- Delivery throttling and abuse safeguards for write-capable mail actions
 
-The detailed Phase 1 approach for SMTP send and reply support lives in [SMTP Integration Plan](./smtp-integration-plan.md).
+The detailed Phase 1 implementation notes for SMTP send and reply support live in [SMTP Integration Plan](./smtp-integration-plan.md).
 
 ## Medium Term
 

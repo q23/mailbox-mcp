@@ -1,4 +1,5 @@
 import { ImapFlow } from "imapflow";
+import type { MessageAddressObject } from "imapflow";
 import {
   ImapConfig,
   MailboxInfo,
@@ -6,6 +7,7 @@ import {
   EmailContent,
   SearchQuery,
   AttachmentInfo,
+  ReplyContext,
 } from "./types";
 
 interface ClientPool {
@@ -13,6 +15,8 @@ interface ClientPool {
   lastActivity: number;
   inUse: boolean;
 }
+
+type MessageSource = Buffer | string | Uint8Array | undefined;
 
 export class ImapClient {
   private globalConfig: Omit<ImapConfig, "user" | "pass">;
@@ -350,8 +354,9 @@ export class ImapClient {
 
       // Extract text body from source
       let textBody = "";
-      if (message.source && typeof message.source === "string") {
-        textBody = this.extractTextFromSource(message.source);
+      const sourceText = this.normalizeSource(message.source);
+      if (sourceText) {
+        textBody = this.extractTextFromSource(sourceText);
       }
 
       return {
@@ -367,6 +372,59 @@ export class ImapClient {
         read: !flags.has("\\Seen"),
         flagged: flags.has("\\Flagged"),
         attachments,
+      };
+    });
+  }
+
+  async getReplyContext(
+    imapUser: string,
+    imapPass: string,
+    folder: string,
+    uid: number
+  ): Promise<ReplyContext> {
+    return this.withConnection(imapUser, imapPass, async (client) => {
+      try {
+        await client.mailboxOpen(folder);
+      } catch (error) {
+        throw new Error(`Failed to open folder "${folder}": ${error}`);
+      }
+
+      const message = await client.fetchOne(uid, {
+        source: true,
+        envelope: true,
+        uid: true,
+      });
+
+      if (!message) {
+        throw new Error(`Message ${uid} not found in folder "${folder}"`);
+      }
+
+      const sourceText = this.normalizeSource(message.source);
+      const headers = this.extractHeaders(sourceText);
+      const envelope = message.envelope;
+
+      const replyTo = this.mapAddresses(envelope?.replyTo);
+      const fallbackReplyTo =
+        replyTo.length > 0
+          ? replyTo
+          : this.extractEmailAddresses(headers.get("reply-to"));
+
+      const referencesHeader = headers.get("references");
+      const references = referencesHeader
+        ? referencesHeader.split(/\s+/).filter(Boolean)
+        : [];
+
+      return {
+        uid: message.uid,
+        folder,
+        subject: envelope?.subject || "(no subject)",
+        from: this.mapAddresses(envelope?.from),
+        replyTo: fallbackReplyTo,
+        to: this.mapAddresses(envelope?.to),
+        cc: this.mapAddresses(envelope?.cc),
+        messageId: envelope?.messageId || headers.get("message-id"),
+        inReplyTo: envelope?.inReplyTo || headers.get("in-reply-to"),
+        references,
       };
     });
   }
@@ -388,5 +446,81 @@ export class ImapClient {
     }
 
     return bodyLines.join("\n").trim().substring(0, 5000); // Limit to 5000 chars
+  }
+
+  private normalizeSource(source: MessageSource): string {
+    if (!source) {
+      return "";
+    }
+
+    if (typeof source === "string") {
+      return source;
+    }
+
+    if (Buffer.isBuffer(source)) {
+      return source.toString("utf8");
+    }
+
+    if (ArrayBuffer.isView(source)) {
+      return Buffer.from(
+        source.buffer,
+        source.byteOffset,
+        source.byteLength
+      ).toString("utf8");
+    }
+
+    return "";
+  }
+
+  private extractHeaders(source: string): Map<string, string> {
+    const headers = new Map<string, string>();
+    const lines = source.split(/\r?\n/);
+    let currentName: string | null = null;
+    let currentValue = "";
+
+    for (const line of lines) {
+      if (line.trim() === "") {
+        break;
+      }
+
+      if (/^\s/.test(line) && currentName) {
+        currentValue += ` ${line.trim()}`;
+        continue;
+      }
+
+      if (currentName) {
+        headers.set(currentName, currentValue.trim());
+      }
+
+      const separator = line.indexOf(":");
+      if (separator === -1) {
+        currentName = null;
+        currentValue = "";
+        continue;
+      }
+
+      currentName = line.slice(0, separator).trim().toLowerCase();
+      currentValue = line.slice(separator + 1).trim();
+    }
+
+    if (currentName) {
+      headers.set(currentName, currentValue.trim());
+    }
+
+    return headers;
+  }
+
+  private mapAddresses(addresses?: MessageAddressObject[]): string[] {
+    return (addresses || [])
+      .map((address) => address.address)
+      .filter((address): address is string => Boolean(address));
+  }
+
+  private extractEmailAddresses(headerValue?: string): string[] {
+    if (!headerValue) {
+      return [];
+    }
+
+    return headerValue.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || [];
   }
 }

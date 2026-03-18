@@ -2,7 +2,7 @@ import { createServer } from "http";
 import type { IncomingMessage, ServerResponse } from "http";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { CallToolRequestSchema, ListToolsRequestSchema, TextContent, Tool } from "@modelcontextprotocol/sdk/types.js";
+import { CallToolRequestSchema, ListToolsRequestSchema, TextContent } from "@modelcontextprotocol/sdk/types.js";
 import type { CallToolRequest } from "@modelcontextprotocol/sdk/types.js";
 import { ImapClient } from "./imap-client";
 import { encrypt } from "./crypto";
@@ -11,13 +11,19 @@ import {
   ListEmailsSchema,
   SearchEmailsSchema,
   ReadEmailSchema,
+  SendEmailSchema,
+  ReplyEmailSchema,
 } from "./schemas/index";
+import { SmtpClient } from "./smtp-client";
+import { createToolDefinitions } from "./tool-definitions";
 import { EncryptCredentialsSchema } from "./tools/encrypt-credentials";
 import { handleListFolders } from "./tools/list-folders";
 import { handleListEmails } from "./tools/list-emails";
 import { handleSearchEmails } from "./tools/search-emails";
 import { handleReadEmail } from "./tools/read-email";
 import { handleEncryptCredentials } from "./tools/encrypt-credentials";
+import { handleSendEmail } from "./tools/send-email";
+import { handleReplyEmail } from "./tools/reply-email";
 
 const LOG_LEVEL = (process.env.LOG_LEVEL || "info") as
   | "debug"
@@ -58,6 +64,21 @@ const imapConfig = {
   tls: (process.env.IMAP_TLS || "true").toLowerCase() === "true",
 };
 
+const smtpEnabled = Boolean(process.env.SMTP_HOST);
+const smtpConfig = smtpEnabled
+  ? {
+      host: process.env.SMTP_HOST || "",
+      port: parseInt(process.env.SMTP_PORT || "587"),
+      tls: (process.env.SMTP_TLS || "true").toLowerCase() === "true",
+      from: process.env.SMTP_FROM?.trim() || undefined,
+    }
+  : undefined;
+
+if (smtpConfig && Number.isNaN(smtpConfig.port)) {
+  logger.error("SMTP_PORT must be a valid number when SMTP_HOST is configured");
+  process.exit(1);
+}
+
 // Load and validate encryption key from env
 if (!process.env.ENCRYPTION_KEY) {
   logger.error(
@@ -84,145 +105,10 @@ const imapClient = new ImapClient({
   port: imapConfig.port,
   tls: imapConfig.tls,
 });
+const smtpClient = smtpConfig ? new SmtpClient(smtpConfig) : undefined;
 
 // Tool definitions
-const tools: Tool[] = [
-  {
-    name: "imap_encrypt_credentials",
-    description:
-      "Encrypt IMAP credentials for use with other tools. Call this once to get an encrypted token, then use the token for all subsequent IMAP operations.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        imap_user: {
-          type: "string",
-          description: "IMAP email address",
-        },
-        imap_pass: {
-          type: "string",
-          description: "IMAP password or app-specific password",
-        },
-      },
-      required: ["imap_user", "imap_pass"],
-    },
-  },
-  {
-    name: "imap_list_folders",
-    description:
-      "List all mailbox folders (INBOX, Sent, Drafts, etc.) with message and unread counts",
-    inputSchema: {
-      type: "object",
-      properties: {
-        credentials: {
-          type: "string",
-          description:
-            "Encrypted IMAP credentials token. Optional if x-imap-user/x-imap-pass headers are configured.",
-        },
-      },
-      required: [],
-    },
-  },
-  {
-    name: "imap_list_emails",
-    description:
-      "List recent emails from a specific folder with pagination support",
-    inputSchema: {
-      type: "object",
-      properties: {
-        credentials: {
-          type: "string",
-          description:
-            "Encrypted IMAP credentials token. Optional if x-imap-user/x-imap-pass headers are configured.",
-        },
-        folder: {
-          type: "string",
-          description: "Folder name (default: INBOX)",
-        },
-        limit: {
-          type: "number",
-          description:
-            "Maximum number of emails to return (default: 20, max: 100)",
-        },
-        offset: {
-          type: "number",
-          description: "Number of emails to skip for pagination (default: 0)",
-        },
-      },
-      required: [],
-    },
-  },
-  {
-    name: "imap_search_emails",
-    description:
-      "Search emails by various criteria (query, from, to, subject, date range)",
-    inputSchema: {
-      type: "object",
-      properties: {
-        credentials: {
-          type: "string",
-          description:
-            "Encrypted IMAP credentials token. Optional if x-imap-user/x-imap-pass headers are configured.",
-        },
-        query: {
-          type: "string",
-          description: "Search query text",
-        },
-        folder: {
-          type: "string",
-          description: "Folder to search in (default: INBOX)",
-        },
-        from: {
-          type: "string",
-          description: "Filter by sender email",
-        },
-        to: {
-          type: "string",
-          description: "Filter by recipient email",
-        },
-        since: {
-          type: "string",
-          description: "Filter emails since date (ISO 8601 format)",
-        },
-        before: {
-          type: "string",
-          description: "Filter emails before date (ISO 8601 format)",
-        },
-        subject: {
-          type: "string",
-          description: "Filter by subject line",
-        },
-        limit: {
-          type: "number",
-          description: "Maximum number of results (default: 20, max: 100)",
-        },
-      },
-      required: ["query"],
-    },
-  },
-  {
-    name: "imap_read_email",
-    description: "Read the full content of a single email by message ID",
-    inputSchema: {
-      type: "object",
-      properties: {
-        credentials: {
-          type: "string",
-          description:
-            "Encrypted IMAP credentials token. Optional if x-imap-user/x-imap-pass headers are configured.",
-        },
-        uid: {
-          type: "number",
-          description: "Message UID (unique identifier in folder)",
-        },
-        folder: {
-          type: "string",
-          description: "Folder name (default: INBOX)",
-        },
-      },
-      required: ["uid"],
-    },
-  },
-];
+const tools = createToolDefinitions({ smtpEnabled: Boolean(smtpClient) });
 
 // CORS headers for Claude Desktop / Cowork access
 const corsHeaders = {
@@ -308,6 +194,43 @@ function createMcpServer(defaultCredentials?: string): Server {
               credentials: resolveCredentials(validated.credentials),
             });
           }
+          case "smtp_send_email": {
+            if (!smtpClient || !smtpConfig) {
+              throw new Error("SMTP support is not configured on this server");
+            }
+
+            const validated = SendEmailSchema.parse(
+              request.params.arguments || {}
+            );
+            return await handleSendEmail(
+              smtpClient,
+              encryptionKey,
+              smtpConfig.from,
+              {
+                ...validated,
+                credentials: resolveCredentials(validated.credentials),
+              }
+            );
+          }
+          case "smtp_reply_email": {
+            if (!smtpClient || !smtpConfig) {
+              throw new Error("SMTP support is not configured on this server");
+            }
+
+            const validated = ReplyEmailSchema.parse(
+              request.params.arguments || {}
+            );
+            return await handleReplyEmail(
+              imapClient,
+              smtpClient,
+              encryptionKey,
+              smtpConfig.from,
+              {
+                ...validated,
+                credentials: resolveCredentials(validated.credentials),
+              }
+            );
+          }
           default:
             return {
               content: [
@@ -344,6 +267,9 @@ const PORT = parseInt(process.env.PORT || "3000");
 logger.info("Starting IMAP MCP Server (HTTP mode)");
 logger.info(`IMAP Host: ${imapConfig.host}:${imapConfig.port}`);
 logger.info("Credential-per-request mode enabled");
+if (smtpConfig) {
+  logger.info(`SMTP enabled for ${smtpConfig.host}:${smtpConfig.port}`);
+}
 
 const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
   const url = new URL(req.url ?? "/", `http://localhost:${PORT}`);

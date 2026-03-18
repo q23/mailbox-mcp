@@ -4,6 +4,13 @@ export interface ImapConfig {
   tls: boolean;
 }
 
+export interface SmtpConfig {
+  host: string;
+  port: number;
+  tls: boolean;
+  from?: string;
+}
+
 export interface MailboxInfo {
   name: string;
   path: string;
@@ -51,4 +58,25 @@ export interface SearchQuery {
   before?: string;
   subject?: string;
   text?: string;
+}
+
+export interface SentEmailResult {
+  messageId?: string;
+  envelopeFrom?: string;
+  envelopeTo: string[];
+  accepted: string[];
+  rejected: string[];
+}
+
+export interface ReplyContext {
+  uid: number;
+  folder: string;
+  subject: string;
+  from: string[];
+  replyTo: string[];
+  to: string[];
+  cc: string[];
+  messageId?: string;
+  inReplyTo?: string;
+  references: string[];
 }

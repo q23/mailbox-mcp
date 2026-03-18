@@ -9,7 +9,8 @@ Current release highlights:
 - Encrypted per-request credentials using AES-256-GCM
 - Optional default mailbox credentials from `x-imap-user` and `x-imap-pass`
 - Shared IMAP connection pooling by user
-- Read-focused IMAP tools for folder listing, message listing, search, and full message retrieval
+- IMAP tools for folder listing, message listing, search, and full message retrieval
+- Optional SMTP tools for sending new email and replying to mailbox messages
 - Docker-ready deployment and Node.js 20+ compatibility
 
 ## Intended Use
@@ -28,6 +29,8 @@ The server does not store user credentials. Instead, it expects one of these flo
 - `imap_list_emails`
 - `imap_search_emails`
 - `imap_read_email`
+- `smtp_send_email`
+- `smtp_reply_email`
 
 ## Runtime Requirements
 
@@ -40,5 +43,4 @@ The server does not store user credentials. Instead, it expects one of these flo
 
 - TypeScript strict mode is enabled
 - Zod validation protects public tool inputs
-- `bun run type-check` and `bun run build` pass on the release baseline
-- The repository currently contains no automated test files
+- `bun run type-check`, `bun run build`, and `bun test` pass on the current baseline
