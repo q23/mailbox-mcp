@@ -47,8 +47,13 @@ const logger = {
 };
 
 // Global IMAP config (shared across all users)
+if (!process.env.IMAP_HOST) {
+  logger.error("IMAP_HOST env var is required (e.g. imap.yourserver.com)");
+  process.exit(1);
+}
+
 const imapConfig = {
-  host: process.env.IMAP_HOST || "srv8.q23.net",
+  host: process.env.IMAP_HOST,
   port: parseInt(process.env.IMAP_PORT || "993"),
   tls: (process.env.IMAP_TLS || "true").toLowerCase() === "true",
 };
