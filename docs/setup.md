@@ -30,7 +30,6 @@ IMAP_TLS=true
 SMTP_HOST=smtp.yourserver.com
 SMTP_PORT=587
 SMTP_TLS=true
-SMTP_FROM=mailbox@example.com
 PORT=3000
 LOG_LEVEL=info
 ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
@@ -103,6 +102,7 @@ bun run scripts/encrypt-credentials.ts \
 
 Then pass the returned token as the `credentials` argument to the IMAP tools.
 The same token is also valid for SMTP tools when SMTP is enabled.
+For SMTP, `from` must come from the tool input if you want to override the authenticated mailbox user.
 
 ## Environment Variables
 
@@ -114,7 +114,6 @@ The same token is also valid for SMTP tools when SMTP is enabled.
 | `SMTP_HOST` | No | None | Enables SMTP tools when configured |
 | `SMTP_PORT` | No | `587` | SMTP submission port |
 | `SMTP_TLS` | No | `true` | Require TLS for SMTP when not using port `465` |
-| `SMTP_FROM` | No | None | Default sender override for SMTP tools |
 | `ENCRYPTION_KEY` | Yes | None | 64-character hex AES-256-GCM key |
 | `PORT` | No | `3000` | HTTP listen port |
 | `LOG_LEVEL` | No | `info` | `debug`, `info`, `warn`, or `error` |

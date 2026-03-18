@@ -38,7 +38,7 @@ The shipped runtime uses only HTTP-based transport.
 ### Server Configuration
 
 - `IMAP_HOST`, `IMAP_PORT`, and `IMAP_TLS` describe the shared IMAP server.
-- `SMTP_HOST`, `SMTP_PORT`, `SMTP_TLS`, and `SMTP_FROM` control optional outbound mail support.
+- `SMTP_HOST`, `SMTP_PORT`, and `SMTP_TLS` control optional outbound mail support.
 - `ENCRYPTION_KEY` is required and must be a 64-character hex string.
 
 ### Token Format

@@ -76,7 +76,6 @@ Optional SMTP support:
 SMTP_HOST=smtp.yourserver.com
 SMTP_PORT=587
 SMTP_TLS=true
-SMTP_FROM=mailbox@example.com
 ```
 
 ### 4. Start the server
@@ -99,6 +98,8 @@ The server supports two credential flows:
 
 1. Configure `x-imap-user` and `x-imap-pass` headers in the MCP client. The server encrypts them per request and uses them as defaults.
 2. Call `imap_encrypt_credentials` once and pass the returned token as the `credentials` argument to IMAP and SMTP tools.
+
+For SMTP, the sender comes from the tool input field `from` when provided. If omitted, the server uses the authenticated mailbox user.
 
 ### Claude Desktop
 
@@ -157,7 +158,6 @@ For reporting vulnerabilities, see [SECURITY.md](./SECURITY.md).
 | `SMTP_HOST` | No | None | Enables SMTP tools when set |
 | `SMTP_PORT` | No | `587` | SMTP submission port |
 | `SMTP_TLS` | No | `true` | Require TLS for SMTP when not using port `465` |
-| `SMTP_FROM` | No | None | Default sender override for SMTP tools |
 | `ENCRYPTION_KEY` | Yes | None | 64-character hex AES-256-GCM key |
 | `PORT` | No | `3000` | HTTP listen port |
 | `LOG_LEVEL` | No | `info` | `debug`, `info`, `warn`, or `error` |

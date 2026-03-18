@@ -31,10 +31,9 @@ export function dedupeAddresses(
 
 export function resolveSenderAddress(
   inputFrom: string | undefined,
-  defaultFrom: string | undefined,
   mailboxUser: string
 ): string {
-  for (const candidate of [inputFrom, defaultFrom, mailboxUser]) {
+  for (const candidate of [inputFrom, mailboxUser]) {
     if (candidate && candidate.trim()) {
       return candidate.trim();
     }

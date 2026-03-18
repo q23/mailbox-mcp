@@ -15,7 +15,6 @@ export async function handleReplyEmail(
   imapClient: ImapClient,
   smtpClient: SmtpClient,
   encryptionKey: string,
-  defaultFrom: string | undefined,
   input: z.infer<typeof ReplyEmailSchema>
 ): Promise<{
   content: TextContent[];
@@ -34,7 +33,7 @@ export async function handleReplyEmail(
       input.reply_all
     );
     const headers = buildReplyThreadHeaders(context);
-    const from = resolveSenderAddress(input.from, defaultFrom, creds.user);
+    const from = resolveSenderAddress(input.from, creds.user);
     const subject = normalizeReplySubject(context.subject);
 
     const result = await smtpClient.sendEmail(creds.user, creds.pass, {

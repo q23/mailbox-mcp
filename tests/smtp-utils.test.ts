@@ -9,12 +9,14 @@ import {
 describe("smtp-utils", () => {
   it("prefers explicit sender over default and mailbox user", () => {
     expect(
-      resolveSenderAddress(
-        "custom@example.com",
-        "default@example.com",
-        "mailbox@example.com"
-      )
+      resolveSenderAddress("custom@example.com", "mailbox@example.com")
     ).toBe("custom@example.com");
+  });
+
+  it("falls back to mailbox user when input sender is omitted", () => {
+    expect(resolveSenderAddress(undefined, "mailbox@example.com")).toBe(
+      "mailbox@example.com"
+    );
   });
 
   it("normalizes reply subjects without duplicating Re", () => {

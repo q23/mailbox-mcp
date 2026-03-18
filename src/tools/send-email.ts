@@ -8,14 +8,13 @@ import { resolveSenderAddress } from "../smtp-utils";
 export async function handleSendEmail(
   smtpClient: SmtpClient,
   encryptionKey: string,
-  defaultFrom: string | undefined,
   input: z.infer<typeof SendEmailSchema>
 ): Promise<{
   content: TextContent[];
 }> {
   try {
     const creds = resolveCredentials(input.credentials!, encryptionKey);
-    const from = resolveSenderAddress(input.from, defaultFrom, creds.user);
+    const from = resolveSenderAddress(input.from, creds.user);
     const result = await smtpClient.sendEmail(creds.user, creds.pass, {
       from,
       to: input.to,

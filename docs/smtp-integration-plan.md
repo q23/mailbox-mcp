@@ -40,7 +40,6 @@ Add optional server environment variables:
 | `SMTP_HOST` | No | None | If missing, SMTP tools are not registered |
 | `SMTP_PORT` | No | `587` | Standard submission port |
 | `SMTP_TLS` | No | `true` | Maps to `requireTLS`; `secure` is derived from port `465` |
-| `SMTP_FROM` | No | None | Optional default sender override |
 
 The server should continue to boot in IMAP-only mode when `SMTP_HOST` is not set.
 
@@ -74,7 +73,7 @@ Input:
 Behavior:
 
 - requires at least one recipient in `to`
-- uses `from` if provided, otherwise `SMTP_FROM`, otherwise resolved mailbox user
+- uses `from` if provided, otherwise the resolved mailbox user
 - returns a short delivery summary including envelope sender, recipients, and generated message id when available
 
 ### `smtp_reply_email`
@@ -163,7 +162,7 @@ This avoids breaking existing IMAP-only deployments.
 
 1. Validate tool input with Zod.
 2. Resolve credentials via the existing encrypted-token flow.
-3. Build the sender address from `input.from`, `SMTP_FROM`, or mailbox user.
+3. Build the sender address from `input.from` or mailbox user.
 4. Send through `SmtpClient`.
 5. Return a markdown summary with recipients and message id.
 
