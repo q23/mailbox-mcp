@@ -1,6 +1,6 @@
-import { ImapClient } from "@/imap-client";
-import { ListFoldersSchema } from "@/schemas";
-import { resolveCredentials } from "@/crypto";
+import { ImapClient } from "../imap-client";
+import { ListFoldersSchema } from "../schemas/index";
+import { resolveCredentials } from "../crypto";
 import type { TextContent } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 

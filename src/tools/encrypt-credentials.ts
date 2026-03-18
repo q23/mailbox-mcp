@@ -1,4 +1,4 @@
-import { encrypt } from '@/crypto';
+import { encrypt } from '../crypto';
 import type { TextContent } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 

@@ -6,7 +6,7 @@ import {
   EmailContent,
   SearchQuery,
   AttachmentInfo,
-} from "@/types";
+} from "./types";
 
 interface ClientPool {
   client: ImapFlow;
