@@ -1,10 +1,10 @@
-# imap-mcp-server
+# mailbox-mcp
 
 ![MIT License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Bun >=1.0](https://img.shields.io/badge/bun-%3E%3D1.0-black.svg)
 ![Node >=20](https://img.shields.io/badge/node-%3E%3D20-339933.svg)
 
-An [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server for IMAP mailboxes. It exposes mailbox browsing and message reading tools over Streamable HTTP, while keeping user credentials out of server-side storage.
+An [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server for mailboxes. It exposes IMAP mailbox browsing plus SMTP send/reply tools over Streamable HTTP, while keeping user credentials out of server-side storage.
 
 ## Highlights
 
@@ -160,7 +160,7 @@ curl http://localhost:3000/health
 Expected response:
 
 ```json
-{"status":"ok","service":"imap-mcp-server"}
+{"status":"ok","service":"mailbox-mcp"}
 ```
 
 ## MCP Client Configuration
@@ -208,7 +208,7 @@ If you use Claude Desktop, edit the desktop config file for your platform:
 ```json
 {
   "mcpServers": {
-    "imap": {
+    "mailbox": {
       "command": "npx",
       "args": [
         "mcp-remote",
@@ -236,7 +236,34 @@ If you use Claude Code or Cowork, edit the user settings file for your platform:
 ```json
 {
   "mcpServers": {
-    "imap": {
+    "mailbox": {
+      "type": "http",
+      "url": "https://your-deployed-server.example.com/mcp",
+      "headers": {
+        "x-imap-user": "you@yourcompany.com",
+        "x-imap-pass": "your-imap-password"
+      }
+    }
+  }
+}
+```
+
+### Claude Code / Cowork Project Settings
+
+In addition to the user-level file, Claude Code supports project-scoped settings.
+
+Common locations:
+
+- shared project settings: `.claude/settings.json`
+- local project overrides: `.claude/settings.local.json`
+- MCP-only project config: `.mcp.json`
+
+Example project-scoped config:
+
+```json
+{
+  "mcpServers": {
+    "mailbox": {
       "type": "http",
       "url": "https://your-deployed-server.example.com/mcp",
       "headers": {
@@ -303,7 +330,7 @@ SMTP tools appear only if `SMTP_HOST` is configured on the server.
 {
   "to": ["person@example.com"],
   "subject": "SMTP test",
-  "text": "Hello from imap-mcp-server"
+  "text": "Hello from mailbox-mcp"
 }
 ```
 
@@ -315,7 +342,7 @@ Optional sender override:
 {
   "to": ["person@example.com"],
   "subject": "SMTP test",
-  "text": "Hello from imap-mcp-server",
+  "text": "Hello from mailbox-mcp",
   "from": "alias@example.com"
 }
 ```
@@ -436,7 +463,7 @@ The repository includes focused Bun tests for SMTP schema validation, tool regis
 ## Project Structure
 
 ```text
-imap-mcp-server/
+mailbox-mcp/
 ├── docs/
 ├── scripts/
 │   └── encrypt-credentials.ts

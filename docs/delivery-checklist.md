@@ -1,6 +1,6 @@
 # Delivery Checklist
 
-This checklist is for preparing a public release of `imap-mcp-server`.
+This checklist is for preparing a public release of `mailbox-mcp`.
 
 ## Repository
 

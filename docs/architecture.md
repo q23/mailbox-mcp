@@ -2,7 +2,7 @@
 
 ## Overview
 
-`imap-mcp-server` is an HTTP-based MCP server built around a shared IMAP configuration and per-request mailbox credentials.
+`mailbox-mcp` is an HTTP-based MCP server built around a shared IMAP configuration and per-request mailbox credentials.
 
 Core properties:
 

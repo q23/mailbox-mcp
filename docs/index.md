@@ -1,6 +1,6 @@
 # Documentation Index
 
-This directory contains the public project documentation for `imap-mcp-server`.
+This directory contains the public project documentation for `mailbox-mcp`.
 
 ## Core Guides
 

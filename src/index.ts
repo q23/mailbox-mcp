@@ -119,7 +119,7 @@ const corsHeaders = {
 
 function createMcpServer(defaultCredentials?: string): Server {
   const server = new Server(
-    { name: "imap-mcp-server", version: "1.0.0" },
+    { name: "mailbox-mcp", version: "1.0.0" },
     { capabilities: { tools: {} } }
   );
 
@@ -261,7 +261,7 @@ function createMcpServer(defaultCredentials?: string): Server {
 
 const PORT = parseInt(process.env.PORT || "3000");
 
-logger.info("Starting IMAP MCP Server (HTTP mode)");
+logger.info("Starting mailbox-mcp (HTTP mode)");
 logger.info(`IMAP Host: ${imapConfig.host}:${imapConfig.port}`);
 logger.info("Credential-per-request mode enabled");
 if (smtpConfig) {
@@ -286,7 +286,7 @@ const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse
   // Health check
   if (url.pathname === "/health") {
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ status: "ok", service: "imap-mcp-server" }));
+    res.end(JSON.stringify({ status: "ok", service: "mailbox-mcp" }));
     return;
   }
 
@@ -326,7 +326,7 @@ const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse
 });
 
 httpServer.listen(PORT, "0.0.0.0", () => {
-  logger.info(`IMAP MCP Server listening on http://0.0.0.0:${PORT}/mcp`);
+  logger.info(`mailbox-mcp listening on http://0.0.0.0:${PORT}/mcp`);
 });
 
 // Graceful shutdown

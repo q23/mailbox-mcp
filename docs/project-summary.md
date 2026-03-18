@@ -2,7 +2,7 @@
 
 ## Release Snapshot
 
-`imap-mcp-server` is a Bun-first MCP server for read-oriented IMAP access over Streamable HTTP.
+`mailbox-mcp` is a Bun-first MCP server for read-oriented IMAP access and SMTP delivery over Streamable HTTP.
 
 Current release highlights:
 

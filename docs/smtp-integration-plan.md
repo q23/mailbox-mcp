@@ -2,7 +2,7 @@
 
 ## Goal
 
-Add outbound email support to `imap-mcp-server` without changing the existing IMAP behavior or the current encrypted credential model for IMAP access.
+Add outbound email support to `mailbox-mcp` without changing the existing IMAP behavior or the current encrypted credential model for IMAP access.
 
 ## Scope
 
