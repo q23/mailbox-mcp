@@ -5,6 +5,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { CallToolRequestSchema, ListToolsRequestSchema, TextContent, Tool } from "@modelcontextprotocol/sdk/types.js";
 import type { CallToolRequest } from "@modelcontextprotocol/sdk/types.js";
 import { ImapClient } from "./imap-client";
+import { encrypt } from "./crypto";
 import {
   ListFoldersSchema,
   ListEmailsSchema,
@@ -110,10 +111,10 @@ const tools: Tool[] = [
         credentials: {
           type: "string",
           description:
-            "Base64-encoded encrypted IMAP credentials (use imap_encrypt_credentials tool to generate)",
+            "Encrypted IMAP credentials token. Optional if x-imap-user/x-imap-pass headers are configured.",
         },
       },
-      required: ["credentials"],
+      required: [],
     },
   },
   {
@@ -126,7 +127,7 @@ const tools: Tool[] = [
         credentials: {
           type: "string",
           description:
-            "Base64-encoded encrypted IMAP credentials (use imap_encrypt_credentials tool to generate)",
+            "Encrypted IMAP credentials token. Optional if x-imap-user/x-imap-pass headers are configured.",
         },
         folder: {
           type: "string",
@@ -142,7 +143,7 @@ const tools: Tool[] = [
           description: "Number of emails to skip for pagination (default: 0)",
         },
       },
-      required: ["credentials"],
+      required: [],
     },
   },
   {
@@ -155,7 +156,7 @@ const tools: Tool[] = [
         credentials: {
           type: "string",
           description:
-            "Base64-encoded encrypted IMAP credentials (use imap_encrypt_credentials tool to generate)",
+            "Encrypted IMAP credentials token. Optional if x-imap-user/x-imap-pass headers are configured.",
         },
         query: {
           type: "string",
@@ -190,7 +191,7 @@ const tools: Tool[] = [
           description: "Maximum number of results (default: 20, max: 100)",
         },
       },
-      required: ["credentials", "query"],
+      required: ["query"],
     },
   },
   {
@@ -202,7 +203,7 @@ const tools: Tool[] = [
         credentials: {
           type: "string",
           description:
-            "Base64-encoded encrypted IMAP credentials (use imap_encrypt_credentials tool to generate)",
+            "Encrypted IMAP credentials token. Optional if x-imap-user/x-imap-pass headers are configured.",
         },
         uid: {
           type: "number",
@@ -213,7 +214,7 @@ const tools: Tool[] = [
           description: "Folder name (default: INBOX)",
         },
       },
-      required: ["credentials", "uid"],
+      required: ["uid"],
     },
   },
 ];
@@ -226,11 +227,23 @@ const corsHeaders = {
   "Access-Control-Expose-Headers": "mcp-session-id",
 };
 
-function createMcpServer(): Server {
+function createMcpServer(defaultCredentials?: string): Server {
   const server = new Server(
     { name: "imap-mcp-server", version: "1.0.0" },
     { capabilities: { tools: {} } }
   );
+
+  /** Resolve credentials: prefer explicit param, fall back to header-derived default */
+  function resolveCredentials(paramCredentials?: string): string {
+    const creds = paramCredentials || defaultCredentials;
+    if (!creds) {
+      throw new Error(
+        "No credentials provided. Either pass the 'credentials' parameter or configure " +
+        "'x-imap-user' and 'x-imap-pass' headers in your MCP connector settings."
+      );
+    }
+    return creds;
+  }
 
   // List tools handler
   server.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -258,29 +271,37 @@ function createMcpServer(): Server {
             const validated = ListFoldersSchema.parse(
               request.params.arguments || {}
             );
-            return await handleListFolders(imapClient, encryptionKey, validated);
+            return await handleListFolders(imapClient, encryptionKey, {
+              ...validated,
+              credentials: resolveCredentials(validated.credentials),
+            });
           }
           case "imap_list_emails": {
             const validated = ListEmailsSchema.parse(
               request.params.arguments || {}
             );
-            return await handleListEmails(imapClient, encryptionKey, validated);
+            return await handleListEmails(imapClient, encryptionKey, {
+              ...validated,
+              credentials: resolveCredentials(validated.credentials),
+            });
           }
           case "imap_search_emails": {
             const validated = SearchEmailsSchema.parse(
               request.params.arguments || {}
             );
-            return await handleSearchEmails(
-              imapClient,
-              encryptionKey,
-              validated
-            );
+            return await handleSearchEmails(imapClient, encryptionKey, {
+              ...validated,
+              credentials: resolveCredentials(validated.credentials),
+            });
           }
           case "imap_read_email": {
             const validated = ReadEmailSchema.parse(
               request.params.arguments || {}
             );
-            return await handleReadEmail(imapClient, encryptionKey, validated);
+            return await handleReadEmail(imapClient, encryptionKey, {
+              ...validated,
+              credentials: resolveCredentials(validated.credentials),
+            });
           }
           default:
             return {
@@ -344,7 +365,20 @@ const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse
   // MCP endpoint - stateless per-request
   if (url.pathname === "/mcp") {
     try {
-      const server = createMcpServer();
+      // Build default credentials from headers (x-imap-user / x-imap-pass)
+      let defaultCredentials: string | undefined;
+      const headerUser = req.headers["x-imap-user"];
+      const headerPass = req.headers["x-imap-pass"];
+      if (headerUser && headerPass) {
+        const credJson = JSON.stringify({
+          user: String(headerUser),
+          pass: String(headerPass),
+        });
+        defaultCredentials = encrypt(credJson, encryptionKey);
+        logger.debug(`Header credentials resolved for: ${String(headerUser)}`);
+      }
+
+      const server = createMcpServer(defaultCredentials);
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined, // stateless mode
       });

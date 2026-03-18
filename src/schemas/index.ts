@@ -1,8 +1,9 @@
 import { z } from "zod";
 
-// Shared credentials field for all tools
-const credentialsField = z.string().describe(
-  "Base64-encoded encrypted IMAP credentials (use imap_encrypt_credentials tool to generate)"
+// Shared credentials field for all tools — optional when x-imap-user/x-imap-pass headers are set
+const credentialsField = z.string().optional().describe(
+  "Base64-encoded encrypted IMAP credentials (use imap_encrypt_credentials tool to generate). " +
+  "Optional if x-imap-user and x-imap-pass headers are configured in the MCP connector settings."
 );
 
 export const ListFoldersSchema = z.object({
