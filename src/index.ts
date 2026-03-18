@@ -223,7 +223,7 @@ const tools: Tool[] = [
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, mcp-session-id",
+  "Access-Control-Allow-Headers": "Content-Type, mcp-session-id, x-imap-user, x-imap-pass",
   "Access-Control-Expose-Headers": "mcp-session-id",
 };
 
