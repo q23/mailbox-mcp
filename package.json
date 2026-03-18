@@ -1,8 +1,8 @@
 {
-  "name": "imap-mcp-server",
+  "name": "mailbox-mcp",
   "version": "1.0.0",
   "type": "module",
-  "description": "IMAP MCP Server using Bun runtime with Streamable HTTP transport",
+  "description": "Mailbox MCP server for IMAP and SMTP over Streamable HTTP",
   "main": "dist/index.js",
   "scripts": {
     "dev": "bun run --watch src/index.ts",

@@ -1,11 +1,11 @@
 version: '3.8'
 
 services:
-  imap-mcp-server:
+  mailbox-mcp:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: imap-mcp-server
+    container_name: mailbox-mcp
     restart: unless-stopped
     expose:
       - "${PORT:-3000}"
@@ -13,6 +13,9 @@ services:
       - IMAP_HOST=${IMAP_HOST:-imap.gmail.com}
       - IMAP_PORT=${IMAP_PORT:-993}
       - IMAP_TLS=${IMAP_TLS:-true}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_TLS=${SMTP_TLS:-true}
       - PORT=${PORT:-3000}
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
@@ -25,10 +28,10 @@ services:
       retries: 3
       start_period: 10s
     networks:
-      - imap-network
+      - mailbox-network
     labels:
-      - "com.example.description=IMAP MCP Server for multi-user email integration"
+      - "com.example.description=mailbox-mcp for IMAP and SMTP email integration"
 
 networks:
-  imap-network:
+  mailbox-network:
     driver: bridge
