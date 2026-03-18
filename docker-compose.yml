@@ -7,13 +7,13 @@ services:
       dockerfile: Dockerfile
     container_name: imap-mcp-server
     restart: unless-stopped
-    ports:
-      - "${PORT:-3000}:3000"
+    expose:
+      - "${PORT:-3000}"
     environment:
       - IMAP_HOST=${IMAP_HOST:-imap.gmail.com}
       - IMAP_PORT=${IMAP_PORT:-993}
       - IMAP_TLS=${IMAP_TLS:-true}
-      - PORT=3000
+      - PORT=${PORT:-3000}
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
     env_file:
