@@ -12,7 +12,7 @@ export async function handleListFolders(
   content: TextContent[];
 }> {
   try {
-    const creds = resolveCredentials(input.credentials, encryptionKey);
+    const creds = resolveCredentials(input.credentials!, encryptionKey);
     const folders = await imapClient.listFolders(creds.user, creds.pass);
 
     const markdown = `# IMAP Mailbox Folders

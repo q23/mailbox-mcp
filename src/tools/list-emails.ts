@@ -12,7 +12,7 @@ export async function handleListEmails(
   content: TextContent[];
 }> {
   try {
-    const creds = resolveCredentials(input.credentials, encryptionKey);
+    const creds = resolveCredentials(input.credentials!, encryptionKey);
     const emails = await imapClient.listEmails(
       creds.user,
       creds.pass,

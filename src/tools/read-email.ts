@@ -12,7 +12,7 @@ export async function handleReadEmail(
   content: TextContent[];
 }> {
   try {
-    const creds = resolveCredentials(input.credentials, encryptionKey);
+    const creds = resolveCredentials(input.credentials!, encryptionKey);
     const email = await imapClient.readEmail(
       creds.user,
       creds.pass,

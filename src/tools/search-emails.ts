@@ -12,7 +12,7 @@ export async function handleSearchEmails(
   content: TextContent[];
 }> {
   try {
-    const creds = resolveCredentials(input.credentials, encryptionKey);
+    const creds = resolveCredentials(input.credentials!, encryptionKey);
     const emails = await imapClient.searchEmails(
       creds.user,
       creds.pass,
