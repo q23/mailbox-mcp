@@ -8,6 +8,7 @@ This directory contains the public project documentation for `imap-mcp-server`.
 - [Architecture](./architecture.md): request flow, credential handling, and connection pooling
 - [Project Summary](./project-summary.md): release snapshot and high-level capabilities
 - [Roadmap](./roadmap.md): planned features and priorities
+- [SMTP Integration Plan](./smtp-integration-plan.md): implementation plan for outbound mail support
 - [Delivery Checklist](./delivery-checklist.md): release hygiene and publication checklist
 
 ## Repository Files

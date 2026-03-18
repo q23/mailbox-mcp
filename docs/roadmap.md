@@ -8,6 +8,8 @@ This roadmap reflects likely next steps after the initial open-source release. P
 - Additional mailbox actions such as mark-as-read, move, and delete
 - Attachment download support for `imap_read_email`
 
+The detailed Phase 1 approach for SMTP send and reply support lives in [SMTP Integration Plan](./smtp-integration-plan.md).
+
 ## Medium Term
 
 - OAuth2 and XOAUTH2 authentication support
