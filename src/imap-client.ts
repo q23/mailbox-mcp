@@ -183,7 +183,8 @@ export class ImapClient {
     imapPass: string,
     folder: string,
     limit: number,
-    offset: number
+    offset: number,
+    filter?: { since?: string; before?: string }
   ): Promise<EmailListItem[]> {
     return this.withConnection(imapUser, imapPass, async (client) => {
       try {
@@ -193,7 +194,16 @@ export class ImapClient {
       }
 
       // Get message UIDs in reverse order (newest first)
-      const uids = await client.search({ all: true });
+      const searchFilter: Record<string, unknown> = {};
+      if (filter?.since) {
+        searchFilter.since = new Date(filter.since);
+      } else if (filter?.before) {
+        searchFilter.before = new Date(filter.before);
+      }
+
+      const uids = await client.search(
+        Object.keys(searchFilter).length > 0 ? searchFilter : { all: true }
+      );
       const reversedUids = Array.isArray(uids) ? uids : [];
       const selectedUids = reversedUids
         .slice(

@@ -18,6 +18,8 @@ export const ListEmailsSchema = z.object({
   folder: z.string().optional().default("INBOX"),
   limit: z.number().int().min(1).max(100).optional().default(20),
   offset: z.number().int().min(0).optional().default(0),
+  since: z.string().optional().describe("Filter emails since this date (ISO 8601 or YYYY-MM-DD)"),
+  before: z.string().optional().describe("Filter emails before this date (ISO 8601 or YYYY-MM-DD)"),
 });
 
 export const SearchEmailsSchema = z.object({
@@ -30,6 +32,7 @@ export const SearchEmailsSchema = z.object({
   before: z.string().optional(),
   subject: z.string().optional(),
   limit: z.number().int().min(1).max(100).optional().default(20),
+  sort_order: z.enum(["asc", "desc"]).optional().default("desc"),
 });
 
 export const ReadEmailSchema = z.object({
