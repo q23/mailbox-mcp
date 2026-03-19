@@ -25,7 +25,8 @@ export async function handleSearchEmails(
         before: input.before,
         subject: input.subject,
       },
-      input.limit
+      input.limit,
+      input.sort_order
     );
 
     const markdown = `# Search Results in ${input.folder}

@@ -253,7 +253,8 @@ export class ImapClient {
     folder: string,
     query: string | undefined,
     searchQuery: SearchQuery,
-    limit: number
+    limit: number,
+    sortOrder: "asc" | "desc" = "desc"
   ): Promise<EmailListItem[]> {
     return this.withConnection(imapUser, imapPass, async (client) => {
       try {
@@ -292,7 +293,8 @@ export class ImapClient {
       // Perform search
       const uids = await client.search(searchCriteria);
       const reversedUids = Array.isArray(uids) ? uids : [];
-      const selectedUids = reversedUids.slice(-limit).reverse();
+      const limitedUids = reversedUids.slice(-limit);
+      const selectedUids = sortOrder === "desc" ? limitedUids.reverse() : limitedUids;
 
       const emails: EmailListItem[] = [];
 
