@@ -1,4 +1,5 @@
 import { ImapFlow } from "imapflow";
+import { simpleParser } from "mailparser";
 import type { MessageAddressObject } from "imapflow";
 import {
   ImapConfig,
@@ -15,8 +16,6 @@ interface ClientPool {
   lastActivity: number;
   inUse: boolean;
 }
-
-type MessageSource = Buffer | string | Uint8Array | undefined;
 
 export class ImapClient {
   private globalConfig: Omit<ImapConfig, "user" | "pass">;
@@ -366,23 +365,22 @@ export class ImapClient {
       const flags = message.flags || new Set<string>();
       const attachments: AttachmentInfo[] = [];
 
-      // Extract text body from source
-      let textBody = "";
-      const sourceText = this.normalizeSource(message.source);
-      if (sourceText) {
-        textBody = this.extractTextFromSource(sourceText);
-      }
+      const rawSource = message.source;
+      const parsed = rawSource ? await simpleParser(rawSource as Buffer) : null;
+
+      const textBody = parsed?.text?.substring(0, 5000) || "";
+      const htmlBody = parsed?.html ? parsed.html.substring(0, 10000) : undefined;
 
       return {
         uid: message.uid,
-        subject: envelope?.subject || "(no subject)",
-        from: envelope?.from?.[0]?.address || "unknown",
-        to: envelope?.to?.[0]?.address || "unknown",
+        subject: envelope?.subject || parsed?.subject || "(no subject)",
+        from: envelope?.from?.[0]?.address || parsed?.from?.value?.[0]?.address || "unknown",
+        to: envelope?.to?.[0]?.address || (Array.isArray(parsed?.to) ? parsed?.to?.[0]?.value?.[0]?.address : parsed?.to?.value?.[0]?.address) || "unknown",
         cc: envelope?.cc?.[0]?.address,
         bcc: envelope?.bcc?.[0]?.address,
         date: envelope?.date ? new Date(envelope.date).toISOString() : "",
         textBody,
-        htmlBody: undefined,
+        htmlBody,
         read: flags.has("\\Seen"),
         flagged: flags.has("\\Flagged"),
         attachments,
@@ -413,7 +411,14 @@ export class ImapClient {
         throw new Error(`Message ${uid} not found in folder "${folder}"`);
       }
 
-      const sourceText = this.normalizeSource(message.source);
+      const src = message.source;
+      const sourceText = src
+        ? Buffer.isBuffer(src)
+          ? src.toString("utf8")
+          : typeof src === "string"
+          ? src
+          : Buffer.from((src as Uint8Array).buffer, (src as Uint8Array).byteOffset, (src as Uint8Array).byteLength).toString("utf8")
+        : "";
       const headers = this.extractHeaders(sourceText);
       const envelope = message.envelope;
 
@@ -441,49 +446,6 @@ export class ImapClient {
         references,
       };
     });
-  }
-
-  private extractTextFromSource(source: string): string {
-    // Simple extraction: look for common body delimiters
-    const lines = source.split("\n");
-    let bodyStarted = false;
-    const bodyLines: string[] = [];
-
-    for (const line of lines) {
-      if (line.trim() === "" && !bodyStarted) {
-        bodyStarted = true;
-        continue;
-      }
-      if (bodyStarted && !line.startsWith("--")) {
-        bodyLines.push(line);
-      }
-    }
-
-    return bodyLines.join("\n").trim().substring(0, 5000); // Limit to 5000 chars
-  }
-
-  private normalizeSource(source: MessageSource): string {
-    if (!source) {
-      return "";
-    }
-
-    if (typeof source === "string") {
-      return source;
-    }
-
-    if (Buffer.isBuffer(source)) {
-      return source.toString("utf8");
-    }
-
-    if (ArrayBuffer.isView(source)) {
-      return Buffer.from(
-        source.buffer,
-        source.byteOffset,
-        source.byteLength
-      ).toString("utf8");
-    }
-
-    return "";
   }
 
   private extractHeaders(source: string): Map<string, string> {
