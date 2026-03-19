@@ -18,12 +18,14 @@ export async function handleListEmails(
       creds.pass,
       input.folder,
       input.limit,
-      input.offset
+      input.offset,
+      { since: input.since, before: input.before }
     );
 
     const markdown = `# Emails from ${input.folder}
 
 **Showing**: ${input.offset + 1} to ${input.offset + emails.length} (limit: ${input.limit})
+${input.since ? `**Since**: ${input.since}\n` : ""}${input.before ? `**Before**: ${input.before}\n` : ""}
 
 ${
   emails.length === 0
