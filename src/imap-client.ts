@@ -218,7 +218,7 @@ export class ImapClient {
         try {
           const message = await client.fetchOne(
             uid,
-            { source: false, envelope: true, flags: true, uid: true },
+            { source: false, envelope: true, flags: true },
             { uid: true }
           );
 
@@ -302,7 +302,7 @@ export class ImapClient {
         try {
           const message = await client.fetchOne(
             uid,
-            { source: false, envelope: true, flags: true, uid: true },
+            { source: false, envelope: true, flags: true },
             { uid: true }
           );
 
@@ -347,7 +347,7 @@ export class ImapClient {
       try {
         message = await client.fetchOne(
           uid,
-          { source: true, envelope: true, flags: true, uid: true },
+          { source: true, envelope: true, flags: true },
           { uid: true }
         );
       } catch (error) {
@@ -400,7 +400,7 @@ export class ImapClient {
 
       const message = await client.fetchOne(
         uid,
-        { source: true, envelope: true, uid: true },
+        { source: true, envelope: true },
         { uid: true }
       );
 
