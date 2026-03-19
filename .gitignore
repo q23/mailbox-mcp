@@ -25,3 +25,6 @@ logs/
 
 # Runtime
 .bun/
+
+# docs
+docs/plans/
