@@ -1,6 +1,6 @@
 {
   "name": "mailbox-mcp",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "description": "Mailbox MCP server for IMAP and SMTP over Streamable HTTP",
   "main": "dist/index.js",
