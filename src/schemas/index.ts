@@ -9,6 +9,12 @@ const credentialsField = z.string().optional().describe(
 const emailArrayField = (description: string, minimum = 0) =>
   z.array(z.string().email()).min(minimum).describe(description);
 
+const isoDateField = (description: string) =>
+  z.string().optional().refine(
+    (val) => val === undefined || !isNaN(new Date(val).getTime()),
+    { message: "Must be a valid date string (e.g. 2024-01-01)" }
+  ).describe(description);
+
 export const ListFoldersSchema = z.object({
   credentials: credentialsField,
 });
@@ -18,8 +24,8 @@ export const ListEmailsSchema = z.object({
   folder: z.string().optional().default("INBOX"),
   limit: z.number().int().min(1).max(100).optional().default(20),
   offset: z.number().int().min(0).optional().default(0),
-  since: z.string().optional().describe("Filter emails since this date (ISO 8601 or YYYY-MM-DD)"),
-  before: z.string().optional().describe("Filter emails before this date (ISO 8601 or YYYY-MM-DD)"),
+  since: isoDateField("Filter emails since this date (ISO 8601 or YYYY-MM-DD)"),
+  before: isoDateField("Filter emails before this date (ISO 8601 or YYYY-MM-DD)"),
 });
 
 export const SearchEmailsSchema = z.object({
@@ -28,8 +34,8 @@ export const SearchEmailsSchema = z.object({
   folder: z.string().optional().default("INBOX"),
   from: z.string().optional(),
   to: z.string().optional(),
-  since: z.string().optional(),
-  before: z.string().optional(),
+  since: isoDateField("Filter emails since this date (ISO 8601 or YYYY-MM-DD)"),
+  before: isoDateField("Filter emails before this date (ISO 8601 or YYYY-MM-DD)"),
   subject: z.string().optional(),
   limit: z.number().int().min(1).max(100).optional().default(20),
   sort_order: z.enum(["asc", "desc"]).optional().default("desc"),
