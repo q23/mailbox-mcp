@@ -222,7 +222,7 @@ export class ImapClient {
               from: envelope.from?.[0]?.address || "unknown",
               to: envelope.to?.[0]?.address || "unknown",
               date: envelope.date ? new Date(envelope.date).toISOString() : "",
-              read: !flags.has("\\Seen"),
+              read: flags.has("\\Seen"),
               flagged: flags.has("\\Flagged"),
               messageId: envelope.messageId || undefined,
             });
@@ -304,7 +304,7 @@ export class ImapClient {
               from: envelope.from?.[0]?.address || "unknown",
               to: envelope.to?.[0]?.address || "unknown",
               date: envelope.date ? new Date(envelope.date).toISOString() : "",
-              read: !flags.has("\\Seen"),
+              read: flags.has("\\Seen"),
               flagged: flags.has("\\Flagged"),
               messageId: envelope.messageId || undefined,
             });
@@ -369,7 +369,7 @@ export class ImapClient {
         date: envelope?.date ? new Date(envelope.date).toISOString() : "",
         textBody,
         htmlBody: undefined,
-        read: !flags.has("\\Seen"),
+        read: flags.has("\\Seen"),
         flagged: flags.has("\\Flagged"),
         attachments,
       };
