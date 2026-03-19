@@ -58,6 +58,14 @@ const imapTools: Tool[] = [
           type: "number",
           description: "Number of emails to skip for pagination (default: 0)",
         },
+        since: {
+          type: "string",
+          description: "Filter emails since this date (ISO 8601, e.g. 2024-01-01)",
+        },
+        before: {
+          type: "string",
+          description: "Filter emails before this date (ISO 8601, e.g. 2024-12-31)",
+        },
       },
       required: [],
     },
@@ -102,8 +110,13 @@ const imapTools: Tool[] = [
           type: "number",
           description: "Maximum number of results (default: 20, max: 100)",
         },
+        sort_order: {
+          type: "string",
+          enum: ["asc", "desc"],
+          description: "Sort order by date: desc = newest first (default), asc = oldest first",
+        },
       },
-      required: ["query"],
+      required: [],
     },
   },
   {

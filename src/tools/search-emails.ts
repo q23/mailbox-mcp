@@ -25,12 +25,13 @@ export async function handleSearchEmails(
         before: input.before,
         subject: input.subject,
       },
-      input.limit
+      input.limit,
+      input.sort_order
     );
 
     const markdown = `# Search Results in ${input.folder}
 
-**Query**: ${input.query}
+${input.query ? `**Query**: ${input.query}` : ""}
 ${input.from ? `\n**From**: ${input.from}` : ""}
 ${input.to ? `\n**To**: ${input.to}` : ""}
 ${input.subject ? `\n**Subject contains**: ${input.subject}` : ""}
@@ -43,9 +44,9 @@ ${
   emails.length === 0
     ? "No emails matched your search criteria."
     : `
-| From | Subject | Date | Status |
-|------|---------|------|--------|
-${emails.map((e) => `| ${e.from} | ${e.subject} | ${e.date} | ${e.read ? "Read" : "Unread"} |`).join("\n")}
+| UID | From | Subject | Date | Status |
+|-----|------|---------|------|--------|
+${emails.map((e) => `| ${e.uid} | ${e.from} | ${e.subject} | ${e.date} | ${e.read ? "Read" : "Unread"} |`).join("\n")}
 `
 }
 `;
