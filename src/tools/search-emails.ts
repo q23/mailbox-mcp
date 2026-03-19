@@ -43,9 +43,9 @@ ${
   emails.length === 0
     ? "No emails matched your search criteria."
     : `
-| From | Subject | Date | Status |
-|------|---------|------|--------|
-${emails.map((e) => `| ${e.from} | ${e.subject} | ${e.date} | ${e.read ? "Read" : "Unread"} |`).join("\n")}
+| UID | From | Subject | Date | Status |
+|-----|------|---------|------|--------|
+${emails.map((e) => `| ${e.uid} | ${e.from} | ${e.subject} | ${e.date} | ${e.read ? "Read" : "Unread"} |`).join("\n")}
 `
 }
 `;
