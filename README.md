@@ -484,6 +484,17 @@ mailbox-mcp/
 └── docker-compose.yml
 ```
 
+## Data Protection / DSGVO
+
+`mailbox-mcp` is a self-hosted tool. It does not collect, store, or transmit personal data on its own — all email content is fetched directly from the IMAP server configured by the operator and returned to the requesting MCP client within the same request.
+
+Operators who deploy this software to process mailboxes containing personal data are acting as data controllers or processors under the GDPR / DSGVO and are solely responsible for ensuring their deployment complies with applicable data protection law, including appropriate access controls, logging, and data processing agreements with their users.
+
+## Publisher
+
+`mailbox-mcp` is developed and maintained by **q23 GmbH**.
+Contact: [q23.de/media.html#kontakt-3](https://q23.de/media.html#kontakt-3)
+
 ## License
 
 MIT. See [LICENSE](./LICENSE).

@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for contributing to `imap-mcp-server`.
+Thanks for contributing to `mailbox-mcp`.
 
 ## Prerequisites
 
@@ -11,8 +11,8 @@ Thanks for contributing to `imap-mcp-server`.
 ## Development Setup
 
 ```bash
-git clone https://github.com/q23/imap-mcp-server.git
-cd imap-mcp-server
+git clone https://github.com/q23/mailbox-mcp.git
+cd mailbox-mcp
 bun install
 cp .env.example .env
 ```
@@ -29,7 +29,7 @@ bun run lint
 bun test
 ```
 
-`bun test` is currently informational because the repository does not yet contain automated test files.
+`bun test` runs focused tests for SMTP schema validation, tool registration, and reply helper behavior.
 
 ## Branches and Commits
 
