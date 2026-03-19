@@ -4,6 +4,7 @@
 
 | Version | Supported |
 | --- | --- |
+| `1.1.x` | Yes |
 | `1.0.x` | Yes |
 
 ## Reporting a Vulnerability
@@ -30,7 +31,7 @@ Include as much detail as possible:
 
 ## Security Model
 
-`imap-mcp-server` is designed around a few core constraints:
+`mailbox-mcp` is designed around a few core constraints:
 
 - IMAP credentials are never persisted by the server.
 - The server requires a shared `ENCRYPTION_KEY` and uses AES-256-GCM for credential tokens.
