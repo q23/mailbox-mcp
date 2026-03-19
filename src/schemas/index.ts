@@ -22,7 +22,7 @@ export const ListEmailsSchema = z.object({
 
 export const SearchEmailsSchema = z.object({
   credentials: credentialsField,
-  query: z.string().min(1),
+  query: z.string().optional(),
   folder: z.string().optional().default("INBOX"),
   from: z.string().optional(),
   to: z.string().optional(),

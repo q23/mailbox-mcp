@@ -241,7 +241,7 @@ export class ImapClient {
     imapUser: string,
     imapPass: string,
     folder: string,
-    query: string,
+    query: string | undefined,
     searchQuery: SearchQuery,
     limit: number
   ): Promise<EmailListItem[]> {

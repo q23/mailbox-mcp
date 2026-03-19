@@ -30,7 +30,7 @@ export async function handleSearchEmails(
 
     const markdown = `# Search Results in ${input.folder}
 
-**Query**: ${input.query}
+${input.query ? `**Query**: ${input.query}` : ""}
 ${input.from ? `\n**From**: ${input.from}` : ""}
 ${input.to ? `\n**To**: ${input.to}` : ""}
 ${input.subject ? `\n**Subject contains**: ${input.subject}` : ""}
