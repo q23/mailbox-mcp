@@ -216,12 +216,11 @@ export class ImapClient {
 
       for (const uid of selectedUids) {
         try {
-          const message = await client.fetchOne(uid, {
-            source: false,
-            envelope: true,
-            flags: true,
-            uid: true,
-          });
+          const message = await client.fetchOne(
+            uid,
+            { source: false, envelope: true, flags: true, uid: true },
+            { uid: true }
+          );
 
           if (message && message.envelope) {
             const envelope = message.envelope;
@@ -301,12 +300,11 @@ export class ImapClient {
 
       for (const uid of selectedUids) {
         try {
-          const message = await client.fetchOne(uid, {
-            source: false,
-            envelope: true,
-            flags: true,
-            uid: true,
-          });
+          const message = await client.fetchOne(
+            uid,
+            { source: false, envelope: true, flags: true, uid: true },
+            { uid: true }
+          );
 
           if (message && message.envelope) {
             const envelope = message.envelope;
@@ -347,12 +345,11 @@ export class ImapClient {
 
       let message;
       try {
-        message = await client.fetchOne(uid, {
-          source: true,
-          envelope: true,
-          flags: true,
-          uid: true,
-        });
+        message = await client.fetchOne(
+          uid,
+          { source: true, envelope: true, flags: true, uid: true },
+          { uid: true }
+        );
       } catch (error) {
         throw new Error(`Failed to fetch message ${uid}: ${error}`);
       }
@@ -401,11 +398,11 @@ export class ImapClient {
         throw new Error(`Failed to open folder "${folder}": ${error}`);
       }
 
-      const message = await client.fetchOne(uid, {
-        source: true,
-        envelope: true,
-        uid: true,
-      });
+      const message = await client.fetchOne(
+        uid,
+        { source: true, envelope: true, uid: true },
+        { uid: true }
+      );
 
       if (!message) {
         throw new Error(`Message ${uid} not found in folder "${folder}"`);
