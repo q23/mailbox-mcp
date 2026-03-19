@@ -197,7 +197,8 @@ export class ImapClient {
       const searchFilter: Record<string, unknown> = {};
       if (filter?.since) {
         searchFilter.since = new Date(filter.since);
-      } else if (filter?.before) {
+      }
+      if (filter?.before) {
         searchFilter.before = new Date(filter.before);
       }
 
@@ -293,8 +294,9 @@ export class ImapClient {
       // Perform search
       const uids = await client.search(searchCriteria);
       const reversedUids = Array.isArray(uids) ? uids : [];
-      const limitedUids = reversedUids.slice(-limit);
-      const selectedUids = sortOrder === "desc" ? limitedUids.reverse() : limitedUids;
+      const selectedUids = sortOrder === "desc"
+        ? reversedUids.slice(-limit).reverse()  // newest N, displayed newest-first
+        : reversedUids.slice(0, limit);          // oldest N, displayed oldest-first
 
       const emails: EmailListItem[] = [];
 
