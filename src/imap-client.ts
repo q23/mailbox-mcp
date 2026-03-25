@@ -202,7 +202,8 @@ export class ImapClient {
       }
 
       const uids = await client.search(
-        Object.keys(searchFilter).length > 0 ? searchFilter : { all: true }
+        Object.keys(searchFilter).length > 0 ? searchFilter : { all: true },
+        { uid: true }
       );
       const reversedUids = Array.isArray(uids) ? uids : [];
       const selectedUids = reversedUids
@@ -289,8 +290,8 @@ export class ImapClient {
         searchCriteria.before = new Date(searchQuery.before);
       }
 
-      // Perform search
-      const uids = await client.search(searchCriteria);
+      // Perform search (uid: true returns UIDs instead of sequence numbers)
+      const uids = await client.search(searchCriteria, { uid: true });
       const reversedUids = Array.isArray(uids) ? uids : [];
       const selectedUids = sortOrder === "desc"
         ? reversedUids.slice(-limit).reverse()  // newest N, displayed newest-first
