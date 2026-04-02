@@ -24,6 +24,9 @@ export async function handleReadEmail(
       email.attachments.length > 0
         ? `\n### Attachments\n\n${email.attachments.map((a) => `- **${a.name}** (${(a.size / 1024).toFixed(2)} KB, ${a.type})`).join("\n")}`
         : "";
+    const htmlNotice = email.hasHtmlAlternative
+      ? "\n### HTML Alternative\n\nAn HTML version of this email was detected but is not rendered by mailbox-mcp for security reasons."
+      : "";
 
     const markdown = `# Email Details
 
@@ -34,7 +37,7 @@ ${email.bcc ? `**BCC**: ${email.bcc}\n` : ""}
 **Subject**: ${email.subject}
 **Date**: ${email.date}
 **Status**: ${email.read ? "Read" : "Unread"} ${email.flagged ? "| Flagged" : ""}
-**Message ID**: ${input.uid}
+**UID**: ${input.uid}
 
 ---
 
@@ -42,7 +45,7 @@ ${email.bcc ? `**BCC**: ${email.bcc}\n` : ""}
 
 ${email.textBody || "(empty)"}
 
-${email.htmlBody ? `\n### HTML Version\n\n${email.htmlBody}` : ""}
+${htmlNotice}
 
 ${attachmentList}
 `;

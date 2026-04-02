@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-04-02
+
+### Security
+- Fixed IMAP connection reuse so pooled sessions are keyed by a credential fingerprint instead of only the mailbox username
+- Removed sensitive request logging for mailbox passwords, credential tokens, and email content fields
+- Stopped returning raw HTML email bodies from `imap_read_email`; the tool now returns decoded text content plus a notice when an HTML alternative exists
+- Refreshed dependency versions and lockfile for current security advisories
+
+### Changed
+- MCP server metadata now reports version `1.1.2` consistently with the package version
+- Security documentation now treats locally stored connector headers and encrypted tokens as secrets
+
 ## [1.1.0] - 2026-03-19
 
 ### Added

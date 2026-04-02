@@ -38,7 +38,7 @@ export interface EmailContent {
   bcc?: string;
   date: string;
   textBody: string;
-  htmlBody?: string;
+  hasHtmlAlternative: boolean;
   read: boolean;
   flagged: boolean;
   attachments: AttachmentInfo[];
