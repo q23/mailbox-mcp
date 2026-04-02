@@ -4,8 +4,9 @@
 
 | Version | Supported |
 | --- | --- |
-| `1.1.x` | Yes |
-| `1.0.x` | Yes |
+| `1.1.2+` | Yes |
+| `1.1.0 - 1.1.1` | No |
+| `1.0.x` | No |
 
 ## Reporting a Vulnerability
 
@@ -36,7 +37,9 @@ Include as much detail as possible:
 - IMAP credentials are never persisted by the server.
 - The server requires a shared `ENCRYPTION_KEY` and uses AES-256-GCM for credential tokens.
 - Header-based defaults (`x-imap-user` and `x-imap-pass`) are converted into the same encrypted token flow used by `imap_encrypt_credentials`.
-- IMAP connections are pooled by user and expire after idle timeout.
+- IMAP connections are pooled by a credential fingerprint and expire after idle timeout.
+- `imap_read_email` does not render raw HTML email bodies back to the MCP client.
+- Client-side stored headers or encrypted mailbox tokens must be treated as secrets.
 
 ## Scope Notes
 

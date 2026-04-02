@@ -1,6 +1,5 @@
 import nodemailer from "nodemailer";
 import type { SendMailOptions } from "nodemailer";
-import type SMTPTransport from "nodemailer/lib/smtp-transport";
 import type { SentEmailResult, SmtpConfig } from "./types";
 
 function stringifyAddress(
@@ -33,9 +32,7 @@ export class SmtpClient {
       },
     });
 
-    const info = (await transporter.sendMail(
-      message
-    )) as SMTPTransport.SentMessageInfo;
+    const info = await transporter.sendMail(message);
 
     return {
       messageId: info.messageId,

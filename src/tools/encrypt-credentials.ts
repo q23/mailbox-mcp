@@ -7,12 +7,12 @@ export const EncryptCredentialsSchema = z.object({
   imap_pass: z.string().min(1).describe('IMAP password or app-specific password'),
 });
 
-export async function handleEncryptCredentials(
+export function handleEncryptCredentials(
   encryptionKey: string,
   input: z.infer<typeof EncryptCredentialsSchema>
-): Promise<{
+): {
   content: TextContent[];
-}> {
+} {
   try {
     const credentialJson = JSON.stringify({
       user: input.imap_user,
@@ -32,11 +32,13 @@ ${encrypted}
 
 ## How to Use
 
-Copy the encrypted token above and pass it as the \`credentials\` parameter to any IMAP tool:
+Copy the encrypted token above and pass it as the \`credentials\` parameter to mailbox tools:
 - \`imap_list_folders\`
 - \`imap_list_emails\`
 - \`imap_search_emails\`
 - \`imap_read_email\`
+- \`smtp_send_email\`
+- \`smtp_reply_email\`
 
 Example:
 \`\`\`json
@@ -45,8 +47,7 @@ Example:
   "folder": "INBOX"
 }
 \`\`\`
-
-**Security Note**: Keep this token secure — it grants access to your email account via the IMAP server.
+**Security Note**: Keep this token secure — it grants access to your email account via the configured mailbox services.
 You can safely reuse this token for multiple requests in this session.
 `;
 

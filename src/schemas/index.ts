@@ -6,10 +6,15 @@ const credentialsField = z.string().optional().describe(
   "Optional if x-imap-user and x-imap-pass headers are configured in the MCP connector settings."
 );
 
-const emailArrayField = (description: string, minimum = 0) =>
+const emailArrayField = (
+  description: string,
+  minimum = 0
+): z.ZodArray<z.ZodString, "many"> =>
   z.array(z.string().email()).min(minimum).describe(description);
 
-const isoDateField = (description: string) =>
+const isoDateField = (
+  description: string
+): z.ZodType<string | undefined> =>
   z.string().optional().refine(
     (val) => val === undefined || !isNaN(new Date(val).getTime()),
     { message: "Must be a valid date string (e.g. 2024-01-01)" }

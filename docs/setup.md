@@ -88,6 +88,8 @@ There are two supported ways to provide mailbox credentials.
 
 Configure `x-imap-user` and `x-imap-pass` in the MCP client. The server will encrypt them internally and use them as default credentials for the request.
 
+Use this option only for trusted local setups or tightly controlled internal environments, because the client configuration may store mailbox credentials locally.
+
 ### Option 2: Encrypted token parameter
 
 Generate a reusable token:
@@ -103,6 +105,12 @@ bun run scripts/encrypt-credentials.ts \
 Then pass the returned token as the `credentials` argument to the IMAP tools.
 The same token is also valid for SMTP tools when SMTP is enabled.
 For SMTP, `from` must come from the tool input if you want to override the authenticated mailbox user.
+
+Security recommendations:
+
+- Prefer app passwords over primary mailbox passwords.
+- Treat MCP client config files and encrypted tokens as secrets.
+- Use HTTPS or an equivalent TLS-terminating reverse proxy for every non-local deployment.
 
 ## Environment Variables
 
@@ -129,6 +137,7 @@ For SMTP, `from` must come from the tool input if you want to override the authe
 
 - Re-check the mailbox user and password provided by header or encrypted token.
 - For Gmail or similar providers, use an app password if required.
+- If the credentials are stored in a local MCP config file, verify the file was updated and not overridden by another profile or project-level setting.
 
 ### SMTP tools are missing
 
