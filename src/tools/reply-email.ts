@@ -10,6 +10,7 @@ import {
   normalizeReplySubject,
   resolveSenderAddress,
 } from "../smtp-utils";
+import { escapeMd } from "../utils/markdown";
 
 export async function handleReplyEmail(
   imapClient: ImapClient,
@@ -50,9 +51,9 @@ export async function handleReplyEmail(
     const markdown = `# Reply Sent
 
 **Replying To UID**: ${input.uid}
-**From**: ${from}
-**To**: ${recipients.to.join(", ")}
-${recipients.cc.length > 0 ? `**CC**: ${recipients.cc.join(", ")}\n` : ""}**Subject**: ${subject}
+**From**: ${escapeMd(from)}
+**To**: ${escapeMd(recipients.to.join(", "))}
+${recipients.cc.length > 0 ? `**CC**: ${escapeMd(recipients.cc.join(", "))}\n` : ""}**Subject**: ${escapeMd(subject)}
 **Message ID**: ${result.messageId || "(not provided)"}
 **Accepted**: ${result.accepted.length > 0 ? result.accepted.join(", ") : "none"}
 ${result.rejected.length > 0 ? `**Rejected**: ${result.rejected.join(", ")}` : ""}

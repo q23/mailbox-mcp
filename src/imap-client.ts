@@ -31,6 +31,7 @@ export class ImapClient {
   private globalConfig: Omit<ImapConfig, "user" | "pass">;
   private connectionPool: Map<string, ClientPool> = new Map();
   private readonly IDLE_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes
+  private readonly MAX_POOL_SIZE = parseInt(process.env.MAX_POOL_SIZE || "50");
   private cleanupInterval: NodeJS.Timeout | null = null;
   private readonly connectionFactory: ConnectionFactory;
 
@@ -81,6 +82,11 @@ export class ImapClient {
       return pool.client;
     }
 
+    // Enforce pool size limit for new connections
+    if (!pool && this.connectionPool.size >= this.MAX_POOL_SIZE) {
+      throw new Error("Connection pool limit reached. Try again later.");
+    }
+
     // Close stale connection if it exists
     if (pool && !pool.client.usable) {
       try {
@@ -106,9 +112,11 @@ export class ImapClient {
     try {
       await client.connect();
     } catch (error) {
-      throw new Error(
-        `Failed to connect to IMAP server for ${imapUser}: ${errorToMessage(error)}`
-      );
+      logger.error("IMAP connection failed", {
+        user: maskEmail(imapUser),
+        error: errorToMessage(error),
+      });
+      throw new Error("Failed to connect to IMAP server. Check credentials and server settings.");
     }
 
     // Store in pool

@@ -29,7 +29,7 @@ EXAMPLES:
 
   # Encrypt credentials with a known key
   bun run scripts/encrypt-credentials.ts \\
-    --user a.daiker@q23.de \\
+    --user user@example.com \\
     --pass MyPassword123 \\
     --key a1b2c3d4e5f6...
 

@@ -1,6 +1,7 @@
 import { ImapClient } from "../imap-client";
 import { ListFoldersSchema } from "../schemas/index";
 import { resolveCredentials } from "../crypto";
+import { escapeMd } from "../utils/markdown";
 import type { TextContent } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 
@@ -19,7 +20,7 @@ export async function handleListFolders(
 
 | Folder | Path | Messages | Unread |
 |--------|------|----------|--------|
-${folders.map((f) => `| ${f.name} | ${f.path} | ${f.messageCount} | ${f.unreadCount} |`).join("\n")}
+${folders.map((f) => `| ${escapeMd(f.name)} | ${escapeMd(f.path)} | ${f.messageCount} | ${f.unreadCount} |`).join("\n")}
 
 **Total Folders**: ${folders.length}
 `;

@@ -84,8 +84,7 @@ export function resolveCredentials(
       user: parsed.user,
       pass: parsed.pass,
     };
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    throw new Error(`Failed to decrypt/parse credentials: ${msg}`);
+  } catch {
+    throw new Error("Invalid credentials token.");
   }
 }
