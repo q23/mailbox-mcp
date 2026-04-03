@@ -4,6 +4,7 @@ import { resolveCredentials } from "../crypto";
 import { SendEmailSchema } from "../schemas";
 import { SmtpClient } from "../smtp-client";
 import { resolveSenderAddress } from "../smtp-utils";
+import { escapeMd } from "../utils/markdown";
 
 export async function handleSendEmail(
   smtpClient: SmtpClient,
@@ -27,9 +28,9 @@ export async function handleSendEmail(
 
     const markdown = `# Email Sent
 
-**From**: ${from}
-**To**: ${input.to.join(", ")}
-${input.cc && input.cc.length > 0 ? `**CC**: ${input.cc.join(", ")}\n` : ""}${input.bcc && input.bcc.length > 0 ? `**BCC**: ${input.bcc.join(", ")}\n` : ""}**Subject**: ${input.subject}
+**From**: ${escapeMd(from)}
+**To**: ${escapeMd(input.to.join(", "))}
+${input.cc && input.cc.length > 0 ? `**CC**: ${escapeMd(input.cc.join(", "))}\n` : ""}${input.bcc && input.bcc.length > 0 ? `**BCC**: ${escapeMd(input.bcc.join(", "))}\n` : ""}**Subject**: ${escapeMd(input.subject)}
 **Message ID**: ${result.messageId || "(not provided)"}
 **Accepted**: ${result.accepted.length > 0 ? result.accepted.join(", ") : "none"}
 ${result.rejected.length > 0 ? `**Rejected**: ${result.rejected.join(", ")}` : ""}

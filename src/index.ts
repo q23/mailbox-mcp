@@ -85,8 +85,9 @@ const smtpClient = smtpConfig ? new SmtpClient(smtpConfig) : undefined;
 const tools = createToolDefinitions({ smtpEnabled: Boolean(smtpClient) });
 
 // CORS headers for Claude Desktop / Cowork access
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS || "*";
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": ALLOWED_ORIGINS,
   "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, mcp-session-id, x-imap-user, x-imap-pass",
   "Access-Control-Expose-Headers": "mcp-session-id",
@@ -326,4 +327,12 @@ process.on("SIGTERM", () => {
 });
 process.on("SIGINT", () => {
   void shutdown().catch(() => process.exit(1));
+});
+process.on("unhandledRejection", (reason) => {
+  logger.error("Unhandled rejection", reason);
+  process.exit(1);
+});
+process.on("uncaughtException", (error) => {
+  logger.error("Uncaught exception", error);
+  process.exit(1);
 });

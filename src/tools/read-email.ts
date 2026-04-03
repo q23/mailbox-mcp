@@ -1,6 +1,7 @@
 import { ImapClient } from "../imap-client";
 import { ReadEmailSchema } from "../schemas/index";
 import { resolveCredentials } from "../crypto";
+import { escapeMd } from "../utils/markdown";
 import type { TextContent } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 
@@ -30,11 +31,11 @@ export async function handleReadEmail(
 
     const markdown = `# Email Details
 
-**From**: ${email.from}
-**To**: ${email.to}
-${email.cc ? `**CC**: ${email.cc}\n` : ""}
-${email.bcc ? `**BCC**: ${email.bcc}\n` : ""}
-**Subject**: ${email.subject}
+**From**: ${escapeMd(email.from)}
+**To**: ${escapeMd(email.to)}
+${email.cc ? `**CC**: ${escapeMd(email.cc)}\n` : ""}
+${email.bcc ? `**BCC**: ${escapeMd(email.bcc)}\n` : ""}
+**Subject**: ${escapeMd(email.subject)}
 **Date**: ${email.date}
 **Status**: ${email.read ? "Read" : "Unread"} ${email.flagged ? "| Flagged" : ""}
 **UID**: ${input.uid}

@@ -1,6 +1,7 @@
 import { ImapClient } from "../imap-client";
 import { SearchEmailsSchema } from "../schemas/index";
 import { resolveCredentials } from "../crypto";
+import { escapeMd } from "../utils/markdown";
 import type { TextContent } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 
@@ -46,7 +47,7 @@ ${
     : `
 | UID | From | Subject | Date | Status |
 |-----|------|---------|------|--------|
-${emails.map((e) => `| ${e.uid} | ${e.from} | ${e.subject} | ${e.date} | ${e.read ? "Read" : "Unread"} |`).join("\n")}
+${emails.map((e) => `| ${e.uid} | ${escapeMd(e.from)} | ${escapeMd(e.subject)} | ${e.date} | ${e.read ? "Read" : "Unread"} |`).join("\n")}
 `
 }
 `;

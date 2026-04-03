@@ -26,7 +26,7 @@ export const ListFoldersSchema = z.object({
 
 export const ListEmailsSchema = z.object({
   credentials: credentialsField,
-  folder: z.string().optional().default("INBOX"),
+  folder: z.string().max(200).regex(/^[^\r\n]*$/, "Folder name must not contain newlines").optional().default("INBOX"),
   limit: z.number().int().min(1).max(100).optional().default(20),
   offset: z.number().int().min(0).optional().default(0),
   since: isoDateField("Filter emails since this date (ISO 8601 or YYYY-MM-DD)"),
@@ -36,7 +36,7 @@ export const ListEmailsSchema = z.object({
 export const SearchEmailsSchema = z.object({
   credentials: credentialsField,
   query: z.string().optional(),
-  folder: z.string().optional().default("INBOX"),
+  folder: z.string().max(200).regex(/^[^\r\n]*$/, "Folder name must not contain newlines").optional().default("INBOX"),
   from: z.string().optional(),
   to: z.string().optional(),
   since: isoDateField("Filter emails since this date (ISO 8601 or YYYY-MM-DD)"),
@@ -49,7 +49,7 @@ export const SearchEmailsSchema = z.object({
 export const ReadEmailSchema = z.object({
   credentials: credentialsField,
   uid: z.number().int().positive(),
-  folder: z.string().optional().default("INBOX"),
+  folder: z.string().max(200).regex(/^[^\r\n]*$/, "Folder name must not contain newlines").optional().default("INBOX"),
 });
 
 export const SendEmailSchema = z.object({
@@ -66,7 +66,7 @@ export const SendEmailSchema = z.object({
 export const ReplyEmailSchema = z.object({
   credentials: credentialsField,
   uid: z.number().int().positive(),
-  folder: z.string().optional().default("INBOX"),
+  folder: z.string().max(200).regex(/^[^\r\n]*$/, "Folder name must not contain newlines").optional().default("INBOX"),
   text: z.string().min(1),
   html: z.string().optional(),
   reply_all: z.boolean().optional().default(false),

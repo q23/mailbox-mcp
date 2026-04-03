@@ -455,6 +455,31 @@ SMTP_TLS=true
 
 For reporting vulnerabilities, see [SECURITY.md](./SECURITY.md).
 
+### Encryption Key Rotation
+
+If your `ENCRYPTION_KEY` is compromised or needs to be rotated:
+
+1. Generate a new key: `bun run scripts/encrypt-credentials.ts --generate-key`
+2. Update `ENCRYPTION_KEY` on the server and restart
+3. All previously encrypted credential tokens become **immediately invalid**
+4. Each client must re-run `imap_encrypt_credentials` (or re-configure `x-imap-user` / `x-imap-pass` headers) to obtain a new token under the new key
+
+### CORS / Network Exposure
+
+By default, the server sends `Access-Control-Allow-Origin: *`, which is required for Claude Desktop (local-only) access. For public deployments, restrict this to your specific origin:
+
+```env
+ALLOWED_ORIGINS=https://your-domain.com
+```
+
+### Connection Pool Limit
+
+The server limits the number of concurrent IMAP connections (default: 50). Adjust with:
+
+```env
+MAX_POOL_SIZE=100
+```
+
 ## Environment Variables
 
 | Variable | Required | Default | Description |
@@ -468,6 +493,8 @@ For reporting vulnerabilities, see [SECURITY.md](./SECURITY.md).
 | `ENCRYPTION_KEY` | Yes | None | 64-character hex AES-256-GCM key |
 | `PORT` | No | `3000` | HTTP listen port |
 | `LOG_LEVEL` | No | `info` | `debug`, `info`, `warn`, or `error` |
+| `ALLOWED_ORIGINS` | No | `*` | CORS allowed origin (set to your domain for public deployments) |
+| `MAX_POOL_SIZE` | No | `50` | Maximum concurrent IMAP connections |
 
 ## Development
 
