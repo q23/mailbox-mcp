@@ -170,7 +170,12 @@ The server supports two credential flows:
 1. Configure `x-imap-user` and `x-imap-pass` headers in the MCP client.
 2. Call `imap_encrypt_credentials` once and pass the returned token as the `credentials` argument to IMAP and SMTP tools.
 
-For most setups, the header-based approach is simpler.
+Recommended security defaults:
+
+- Use header-based credentials only for trusted local setups or tightly controlled internal environments.
+- Treat Claude/MCP config files as secret-bearing files if they contain `x-imap-user`, `x-imap-pass`, or encrypted `credentials`.
+- Prefer app passwords over primary mailbox passwords whenever your provider supports them.
+- Use HTTPS for every non-local deployment. Do not expose the MCP endpoint over plain HTTP on the public internet.
 
 ### Important SMTP note
 
@@ -223,6 +228,12 @@ If you use Claude Desktop, edit the desktop config file for your platform:
 }
 ```
 
+Security note:
+
+- The example above stores mailbox credentials in a local config file.
+- Restrict file access on the machine and prefer app passwords over primary account passwords.
+- For shared machines or managed deployments, prefer a token-based flow or another secret distribution mechanism.
+
 ### Claude Code / Cowork
 
 Config file paths:
@@ -247,6 +258,11 @@ If you use Claude Code or Cowork, edit the user settings file for your platform:
   }
 }
 ```
+
+Security note:
+
+- This file may contain mailbox credentials in plaintext.
+- Protect the user profile, do not commit these files, and prefer app passwords where possible.
 
 ### Claude Code / Cowork Project Settings
 
@@ -432,9 +448,37 @@ SMTP_TLS=true
 - `ENCRYPTION_KEY` is required and must be a 64-character hex value.
 - IMAP credentials are never written to disk by the server.
 - Header-based defaults are converted into the same encrypted token format used by `imap_encrypt_credentials`.
+- Client-side stored headers or encrypted tokens must be treated as secrets.
 - IMAP and SMTP operations resolve credentials just in time for the current request.
+- `imap_read_email` returns decoded text content and does not render raw HTML email bodies back to the client.
+- Public deployments should always run behind HTTPS.
 
 For reporting vulnerabilities, see [SECURITY.md](./SECURITY.md).
+
+### Encryption Key Rotation
+
+If your `ENCRYPTION_KEY` is compromised or needs to be rotated:
+
+1. Generate a new key: `bun run scripts/encrypt-credentials.ts --generate-key`
+2. Update `ENCRYPTION_KEY` on the server and restart
+3. All previously encrypted credential tokens become **immediately invalid**
+4. Each client must re-run `imap_encrypt_credentials` (or re-configure `x-imap-user` / `x-imap-pass` headers) to obtain a new token under the new key
+
+### CORS / Network Exposure
+
+By default, the server sends `Access-Control-Allow-Origin: *`, which is required for Claude Desktop (local-only) access. For public deployments, restrict this to your specific origin:
+
+```env
+ALLOWED_ORIGINS=https://your-domain.com
+```
+
+### Connection Pool Limit
+
+The server limits the number of concurrent IMAP connections (default: 50). Adjust with:
+
+```env
+MAX_POOL_SIZE=100
+```
 
 ## Environment Variables
 
@@ -449,6 +493,8 @@ For reporting vulnerabilities, see [SECURITY.md](./SECURITY.md).
 | `ENCRYPTION_KEY` | Yes | None | 64-character hex AES-256-GCM key |
 | `PORT` | No | `3000` | HTTP listen port |
 | `LOG_LEVEL` | No | `info` | `debug`, `info`, `warn`, or `error` |
+| `ALLOWED_ORIGINS` | No | `*` | CORS allowed origin (set to your domain for public deployments) |
+| `MAX_POOL_SIZE` | No | `50` | Maximum concurrent IMAP connections |
 
 ## Development
 
@@ -458,7 +504,7 @@ bun run build
 bun test
 ```
 
-The repository includes focused Bun tests for SMTP schema validation, tool registration, and reply helper behavior.
+The repository includes focused Bun tests for SMTP schema validation, tool registration, IMAP pool hardening, log redaction, and safe email rendering behavior.
 
 ## Project Structure
 

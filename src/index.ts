@@ -24,33 +24,8 @@ import { handleReadEmail } from "./tools/read-email";
 import { handleEncryptCredentials } from "./tools/encrypt-credentials";
 import { handleSendEmail } from "./tools/send-email";
 import { handleReplyEmail } from "./tools/reply-email";
-
-const LOG_LEVEL = (process.env.LOG_LEVEL || "info") as
-  | "debug"
-  | "info"
-  | "warn"
-  | "error";
-
-const logger = {
-  debug: (msg: string, data?: unknown) => {
-    if (LOG_LEVEL === "debug") {
-      console.error(`[DEBUG] ${msg}`, data || "");
-    }
-  },
-  info: (msg: string, data?: unknown) => {
-    if (["debug", "info"].includes(LOG_LEVEL)) {
-      console.error(`[INFO] ${msg}`, data || "");
-    }
-  },
-  warn: (msg: string, data?: unknown) => {
-    if (["debug", "info", "warn"].includes(LOG_LEVEL)) {
-      console.error(`[WARN] ${msg}`, data || "");
-    }
-  },
-  error: (msg: string, data?: unknown) => {
-    console.error(`[ERROR] ${msg}`, data || "");
-  },
-};
+import { errorToMessage, logger, summarizeHeaderCredentials, summarizeToolArguments } from "./logger";
+import { APP_VERSION } from "./version";
 
 // Global IMAP config (shared across all users)
 if (!process.env.IMAP_HOST) {
@@ -110,8 +85,9 @@ const smtpClient = smtpConfig ? new SmtpClient(smtpConfig) : undefined;
 const tools = createToolDefinitions({ smtpEnabled: Boolean(smtpClient) });
 
 // CORS headers for Claude Desktop / Cowork access
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS || "*";
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": ALLOWED_ORIGINS,
   "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, mcp-session-id, x-imap-user, x-imap-pass",
   "Access-Control-Expose-Headers": "mcp-session-id",
@@ -119,7 +95,7 @@ const corsHeaders = {
 
 function createMcpServer(defaultCredentials?: string): Server {
   const server = new Server(
-    { name: "mailbox-mcp", version: "1.0.0" },
+    { name: "mailbox-mcp", version: APP_VERSION },
     { capabilities: { tools: {} } }
   );
 
@@ -136,17 +112,15 @@ function createMcpServer(defaultCredentials?: string): Server {
   }
 
   // List tools handler
-  server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return { tools };
-  });
+  server.setRequestHandler(ListToolsRequestSchema, () => ({ tools }));
 
   // Call tool handler
   server.setRequestHandler(
     CallToolRequestSchema,
     async (request: CallToolRequest) => {
       logger.debug(
-        `Tool request: ${request.params.name}`,
-        request.params.arguments
+        "Tool request received",
+        summarizeToolArguments(request.params.name, request.params.arguments)
       );
 
       try {
@@ -155,7 +129,7 @@ function createMcpServer(defaultCredentials?: string): Server {
             const validated = EncryptCredentialsSchema.parse(
               request.params.arguments || {}
             );
-            return await handleEncryptCredentials(encryptionKey, validated);
+            return handleEncryptCredentials(encryptionKey, validated);
           }
           case "imap_list_folders": {
             const validated = ListFoldersSchema.parse(
@@ -240,9 +214,11 @@ function createMcpServer(defaultCredentials?: string): Server {
             };
         }
       } catch (error) {
-        logger.error(`Tool error for ${request.params.name}`, error);
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
+        const errorMessage = errorToMessage(error);
+        logger.error(`Tool error for ${request.params.name}`, {
+          tool: request.params.name,
+          error: errorMessage,
+        });
         return {
           content: [
             {
@@ -268,7 +244,10 @@ if (smtpConfig) {
   logger.info(`SMTP enabled for ${smtpConfig.host}:${smtpConfig.port}`);
 }
 
-const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
+async function handleHttpRequest(
+  req: IncomingMessage,
+  res: ServerResponse
+): Promise<void> {
   const url = new URL(req.url ?? "/", `http://localhost:${PORT}`);
 
   // Set CORS headers on all responses
@@ -303,7 +282,10 @@ const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse
           pass: String(headerPass),
         });
         defaultCredentials = encrypt(credJson, encryptionKey);
-        logger.debug(`Header credentials resolved for: ${String(headerUser)}`);
+        logger.debug(
+          "Header credentials resolved",
+          summarizeHeaderCredentials(headerUser, headerPass)
+        );
       }
 
       const server = createMcpServer(defaultCredentials);
@@ -314,7 +296,7 @@ const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse
       await server.connect(transport);
       await transport.handleRequest(req, res);
     } catch (error) {
-      logger.error("MCP request error", error);
+      logger.error("MCP request error", { error: errorToMessage(error) });
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Internal server error" }));
     }
@@ -323,6 +305,10 @@ const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse
 
   res.writeHead(404);
   res.end("Not Found");
+}
+
+const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
+  void handleHttpRequest(req, res);
 });
 
 httpServer.listen(PORT, "0.0.0.0", () => {
@@ -336,5 +322,17 @@ const shutdown = async (): Promise<void> => {
   process.exit(0);
 };
 
-process.on("SIGTERM", () => shutdown().catch(() => process.exit(1)));
-process.on("SIGINT", () => shutdown().catch(() => process.exit(1)));
+process.on("SIGTERM", () => {
+  void shutdown().catch(() => process.exit(1));
+});
+process.on("SIGINT", () => {
+  void shutdown().catch(() => process.exit(1));
+});
+process.on("unhandledRejection", (reason) => {
+  logger.error("Unhandled rejection", reason);
+  process.exit(1);
+});
+process.on("uncaughtException", (error) => {
+  logger.error("Uncaught exception", error);
+  process.exit(1);
+});

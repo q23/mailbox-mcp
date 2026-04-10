@@ -1,6 +1,8 @@
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import type { MessageAddressObject } from "imapflow";
+import { createCredentialFingerprint } from "./crypto";
+import { errorToMessage, logger, maskEmail } from "./logger";
 import {
   ImapConfig,
   MailboxInfo,
@@ -13,26 +15,53 @@ import {
 
 interface ClientPool {
   client: ImapFlow;
+  user: string;
   lastActivity: number;
   inUse: boolean;
 }
+
+interface ConnectionOptions extends ImapConfig {
+  user: string;
+  pass: string;
+}
+
+type ConnectionFactory = (config: ConnectionOptions) => ImapFlow;
 
 export class ImapClient {
   private globalConfig: Omit<ImapConfig, "user" | "pass">;
   private connectionPool: Map<string, ClientPool> = new Map();
   private readonly IDLE_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes
+  private readonly MAX_POOL_SIZE = parseInt(process.env.MAX_POOL_SIZE || "50");
   private cleanupInterval: NodeJS.Timeout | null = null;
+  private readonly connectionFactory: ConnectionFactory;
 
-  constructor(config: ImapConfig) {
+  constructor(
+    config: ImapConfig,
+    options?: {
+      connectionFactory?: ConnectionFactory;
+    }
+  ) {
     this.globalConfig = {
       host: config.host,
       port: config.port,
       tls: config.tls,
     };
+    this.connectionFactory =
+      options?.connectionFactory ||
+      ((connectionConfig): ImapFlow =>
+        new ImapFlow({
+          host: connectionConfig.host,
+          port: connectionConfig.port,
+          auth: {
+            user: connectionConfig.user,
+            pass: connectionConfig.pass,
+          },
+          secure: connectionConfig.tls,
+        }));
 
     // Start periodic cleanup of idle connections
     this.cleanupInterval = setInterval(() => {
-      this.cleanupIdleConnections();
+      void this.cleanupIdleConnections();
     }, 1 * 60 * 1000); // Check every minute
   }
 
@@ -40,10 +69,10 @@ export class ImapClient {
    * Get or create a connection for a specific user
    */
   private async getConnection(
+    poolKey: string,
     imapUser: string,
     imapPass: string
   ): Promise<ImapFlow> {
-    const poolKey = imapUser;
     const pool = this.connectionPool.get(poolKey);
 
     // If we have a usable connection, reuse it
@@ -53,38 +82,47 @@ export class ImapClient {
       return pool.client;
     }
 
+    // Enforce pool size limit for new connections
+    if (!pool && this.connectionPool.size >= this.MAX_POOL_SIZE) {
+      throw new Error("Connection pool limit reached. Try again later.");
+    }
+
     // Close stale connection if it exists
     if (pool && !pool.client.usable) {
       try {
         await pool.client.logout();
       } catch (error) {
-        console.error(`Error closing stale connection for ${imapUser}:`, error);
+        logger.warn("Failed to close stale IMAP connection", {
+          user: maskEmail(imapUser),
+          error: errorToMessage(error),
+        });
       }
       this.connectionPool.delete(poolKey);
     }
 
     // Create new connection
-    const client = new ImapFlow({
+    const client = this.connectionFactory({
       host: this.globalConfig.host,
       port: this.globalConfig.port,
-      auth: {
-        user: imapUser,
-        pass: imapPass,
-      },
-      secure: this.globalConfig.tls,
+      tls: this.globalConfig.tls,
+      user: imapUser,
+      pass: imapPass,
     });
 
     try {
       await client.connect();
     } catch (error) {
-      throw new Error(
-        `Failed to connect to IMAP server for ${imapUser}: ${error}`
-      );
+      logger.error("IMAP connection failed", {
+        user: maskEmail(imapUser),
+        error: errorToMessage(error),
+      });
+      throw new Error("Failed to connect to IMAP server. Check credentials and server settings.");
     }
 
     // Store in pool
     this.connectionPool.set(poolKey, {
       client,
+      user: imapUser,
       lastActivity: Date.now(),
       inUse: true,
     });
@@ -95,8 +133,8 @@ export class ImapClient {
   /**
    * Release a connection back to the pool
    */
-  private releaseConnection(imapUser: string): void {
-    const pool = this.connectionPool.get(imapUser);
+  private releaseConnection(poolKey: string): void {
+    const pool = this.connectionPool.get(poolKey);
     if (pool) {
       pool.inUse = false;
       pool.lastActivity = Date.now();
@@ -115,7 +153,10 @@ export class ImapClient {
         try {
           await pool.client.logout();
         } catch (error) {
-          console.error(`Error closing idle connection for ${key}:`, error);
+          logger.warn("Failed to close idle IMAP connection", {
+            user: maskEmail(pool.user),
+            error: errorToMessage(error),
+          });
         }
         keysToDelete.push(key);
       }
@@ -132,11 +173,12 @@ export class ImapClient {
     imapPass: string,
     fn: (client: ImapFlow) => Promise<T>
   ): Promise<T> {
-    const client = await this.getConnection(imapUser, imapPass);
+    const poolKey = createCredentialFingerprint(imapUser, imapPass);
+    const client = await this.getConnection(poolKey, imapUser, imapPass);
     try {
       return await fn(client);
     } finally {
-      this.releaseConnection(imapUser);
+      this.releaseConnection(poolKey);
     }
   }
 
@@ -148,11 +190,14 @@ export class ImapClient {
     }
 
     // Close all connections
-    for (const [key, pool] of this.connectionPool.entries()) {
+    for (const [, pool] of this.connectionPool.entries()) {
       try {
         await pool.client.logout();
       } catch (error) {
-        console.error(`Error closing connection for ${key}:`, error);
+        logger.warn("Failed to close IMAP connection during shutdown", {
+          user: maskEmail(pool.user),
+          error: errorToMessage(error),
+        });
       }
     }
     this.connectionPool.clear();
@@ -189,7 +234,9 @@ export class ImapClient {
       try {
         await client.mailboxOpen(folder);
       } catch (error) {
-        throw new Error(`Failed to open folder "${folder}": ${error}`);
+        throw new Error(
+          `Failed to open folder "${folder}": ${errorToMessage(error)}`
+        );
       }
 
       // Get message UIDs in reverse order (newest first)
@@ -238,7 +285,11 @@ export class ImapClient {
             });
           }
         } catch (error) {
-          console.error(`Error fetching message ${uid}:`, error);
+          logger.warn("Skipping email after IMAP fetch error", {
+            user: maskEmail(imapUser),
+            uid,
+            error: errorToMessage(error),
+          });
           continue;
         }
       }
@@ -260,7 +311,9 @@ export class ImapClient {
       try {
         await client.mailboxOpen(folder);
       } catch (error) {
-        throw new Error(`Failed to open folder "${folder}": ${error}`);
+        throw new Error(
+          `Failed to open folder "${folder}": ${errorToMessage(error)}`
+        );
       }
 
       // Build IMAP search query
@@ -322,7 +375,11 @@ export class ImapClient {
             });
           }
         } catch (error) {
-          console.error(`Error fetching message ${uid}:`, error);
+          logger.warn("Skipping search result after IMAP fetch error", {
+            user: maskEmail(imapUser),
+            uid,
+            error: errorToMessage(error),
+          });
           continue;
         }
       }
@@ -341,7 +398,9 @@ export class ImapClient {
       try {
         await client.mailboxOpen(folder);
       } catch (error) {
-        throw new Error(`Failed to open folder "${folder}": ${error}`);
+        throw new Error(
+          `Failed to open folder "${folder}": ${errorToMessage(error)}`
+        );
       }
 
       let message;
@@ -352,7 +411,9 @@ export class ImapClient {
           { uid: true }
         );
       } catch (error) {
-        throw new Error(`Failed to fetch message ${uid}: ${error}`);
+        throw new Error(
+          `Failed to fetch message ${uid}: ${errorToMessage(error)}`
+        );
       }
 
       if (!message) {
@@ -364,10 +425,10 @@ export class ImapClient {
       const attachments: AttachmentInfo[] = [];
 
       const rawSource = message.source;
-      const parsed = rawSource ? await simpleParser(rawSource as Buffer) : null;
+      const parsed = rawSource ? await simpleParser(rawSource) : null;
 
       const textBody = parsed?.text?.substring(0, 5000) || "";
-      const htmlBody = parsed?.html ? parsed.html.substring(0, 10000) : undefined;
+      const hasHtmlAlternative = Boolean(parsed?.html);
 
       return {
         uid: message.uid,
@@ -378,7 +439,7 @@ export class ImapClient {
         bcc: envelope?.bcc?.[0]?.address,
         date: envelope?.date ? new Date(envelope.date).toISOString() : "",
         textBody,
-        htmlBody,
+        hasHtmlAlternative,
         read: flags.has("\\Seen"),
         flagged: flags.has("\\Flagged"),
         attachments,
@@ -396,7 +457,9 @@ export class ImapClient {
       try {
         await client.mailboxOpen(folder);
       } catch (error) {
-        throw new Error(`Failed to open folder "${folder}": ${error}`);
+        throw new Error(
+          `Failed to open folder "${folder}": ${errorToMessage(error)}`
+        );
       }
 
       const message = await client.fetchOne(
