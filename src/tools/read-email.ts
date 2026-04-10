@@ -1,6 +1,7 @@
 import { ImapClient } from "../imap-client";
 import { ReadEmailSchema } from "../schemas/index";
 import { resolveCredentials } from "../crypto";
+import { escapeMd } from "../utils/markdown";
 import type { TextContent } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 
@@ -24,17 +25,20 @@ export async function handleReadEmail(
       email.attachments.length > 0
         ? `\n### Attachments\n\n${email.attachments.map((a) => `- **${a.name}** (${(a.size / 1024).toFixed(2)} KB, ${a.type})`).join("\n")}`
         : "";
+    const htmlNotice = email.hasHtmlAlternative
+      ? "\n### HTML Alternative\n\nAn HTML version of this email was detected but is not rendered by mailbox-mcp for security reasons."
+      : "";
 
     const markdown = `# Email Details
 
-**From**: ${email.from}
-**To**: ${email.to}
-${email.cc ? `**CC**: ${email.cc}\n` : ""}
-${email.bcc ? `**BCC**: ${email.bcc}\n` : ""}
-**Subject**: ${email.subject}
+**From**: ${escapeMd(email.from)}
+**To**: ${escapeMd(email.to)}
+${email.cc ? `**CC**: ${escapeMd(email.cc)}\n` : ""}
+${email.bcc ? `**BCC**: ${escapeMd(email.bcc)}\n` : ""}
+**Subject**: ${escapeMd(email.subject)}
 **Date**: ${email.date}
 **Status**: ${email.read ? "Read" : "Unread"} ${email.flagged ? "| Flagged" : ""}
-**Message ID**: ${input.uid}
+**UID**: ${input.uid}
 
 ---
 
@@ -42,7 +46,7 @@ ${email.bcc ? `**BCC**: ${email.bcc}\n` : ""}
 
 ${email.textBody || "(empty)"}
 
-${email.htmlBody ? `\n### HTML Version\n\n${email.htmlBody}` : ""}
+${htmlNotice}
 
 ${attachmentList}
 `;

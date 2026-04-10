@@ -10,7 +10,7 @@ Core properties:
 - Stateless request handling
 - AES-256-GCM encrypted credential tokens
 - Optional header-based default credentials
-- Per-user IMAP connection reuse with idle cleanup
+- Per-credential IMAP connection reuse with idle cleanup
 - Optional SMTP delivery using the same mailbox credentials
 
 ## Request Flow
@@ -20,9 +20,9 @@ Core properties:
 3. If both headers are present, the server converts them into the same encrypted token format used by `imap_encrypt_credentials`.
 4. The MCP server validates tool input with Zod.
 5. Each IMAP or SMTP tool resolves an encrypted credential string into `{ user, pass }`.
-6. IMAP tools use the shared `ImapClient` to acquire or create a pooled connection for that mailbox user.
+6. IMAP tools use the shared `ImapClient` to acquire or create a pooled connection for the resolved credential fingerprint.
 7. SMTP tools create a Nodemailer transport on demand with the same mailbox credentials.
-8. The tool executes the operation and returns markdown-formatted text.
+8. The tool executes the operation and returns markdown-formatted text, with email HTML suppressed from `imap_read_email` output.
 
 ## Transport
 
@@ -73,12 +73,12 @@ Tool handlers prefer the explicit `credentials` argument and otherwise fall back
 
 ## Connection Pool
 
-The shared `ImapClient` keeps one pool per mailbox user.
+The shared `ImapClient` keeps one pool per credential fingerprint.
 
-- Pool key: IMAP username
+- Pool key: SHA-256 fingerprint of `user + pass`
 - Idle timeout: 2 minutes
 - Cleanup interval: 60 seconds
-- Goal: reduce reconnect overhead without persisting credentials
+- Goal: reduce reconnect overhead without persisting credentials while preventing cross-password connection reuse
 
 SMTP transport instances are not pooled. Each SMTP request creates a transport with the resolved mailbox credentials and shared SMTP server config.
 
@@ -99,4 +99,5 @@ All tools are registered in `src/index.ts`, with input validation in `src/schema
 - The server exits early if `IMAP_HOST` or `ENCRYPTION_KEY` is missing.
 - SMTP tools are registered only when `SMTP_HOST` is configured.
 - The server does not persist mailbox users, passwords, or encrypted tokens.
+- MCP client config files that contain header credentials or reusable tokens should be treated as local secrets.
 - Security boundaries depend on HTTPS, safe environment variable handling, and correct connector configuration in deployment.
