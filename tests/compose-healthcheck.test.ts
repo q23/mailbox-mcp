@@ -6,11 +6,13 @@ import { join } from "node:path";
 
 // Der Healthcheck in docker-compose.yml entscheidet, ob Traefik den Container routet.
 // Er muss den Port aus PORT nehmen (Deploy: 3099) und bei Verbindungsfehlern scheitern.
+// Ohne YAML-Bibliothek, damit der Test auf jeder unterstützten Bun-Version läuft (Bun.YAML gibt es
+// erst ab 1.2.21). Die Compose schreibt den Check als Inline-Liste mit doppelten Anführungszeichen,
+// und die ist gültiges JSON.
 function healthcheckScript(): string {
-  const compose = Bun.YAML.parse(
-    readFileSync(join(import.meta.dir, "..", "docker-compose.yml"), "utf8"),
-  ) as { services: Record<string, { healthcheck?: { test?: string[] } }> };
-  const command = compose.services["mailbox-mcp"]?.healthcheck?.test ?? [];
+  const compose = readFileSync(join(import.meta.dir, "..", "docker-compose.yml"), "utf8");
+  const inline = compose.match(/^\s+healthcheck:\s*\n\s+test:\s*(\[.*\])\s*$/m);
+  const command: string[] = inline ? JSON.parse(inline[1]) : [];
   const script = command[command.indexOf("-e") + 1];
   if (!command.includes("-e") || !script) {
     throw new Error("Healthcheck-Skript (node -e …) in docker-compose.yml nicht gefunden");
